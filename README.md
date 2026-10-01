@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Plane Shooter
 
-## Getting Started
+A Next.js wrapper around the Plane Shooter canvas game. The home page (`/`) opens the game full-screen straight away.
 
-First, run the development server:
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run dev      # development, http://localhost:3000 (or the next free port)
+npm run build    # production build
+npm run start    # serve the production build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+For production, copy `.env.example` to `.env.local` and set `GAME_SECRET` to a long random value. Without it the server invents a temporary secret on every start, which only works for a single server process.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Where things are
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Path | What it is |
+| --- | --- |
+| `game/` | The game itself: `index.html` plus its images and sounds. Edit the game here. |
+| `lib/game-gate.ts` | Decides who may fetch the game files, and the list of files that may be served. |
+| `app/play/launch/route.ts` | Starts a game session (signed cookie) and returns the private game URL. |
+| `app/play/[ticket]/[file]/route.ts` | Serves the game page, images and sounds to the game iframe only. |
+| `app/game-frame.tsx` | The full-screen iframe on the home page. |
 
-## Learn More
+If the game starts using a new image or sound, put the file in `game/` and add it to `GAME_FILES` in `lib/game-gate.ts`. Files that are not on that list are never served.
 
-To learn more about Next.js, take a look at the following resources:
+## How the game files are protected
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The game is not in `public/`, so it has no static URL. It is only reachable through `/play/<ticket>/<file>`, and a request is answered only when all of these hold:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- the visitor has a valid session cookie (signed, `HttpOnly`, 12 hours) issued by the home page;
+- the `<ticket>` in the URL belongs to that session, so URLs differ per visitor and expire with the session;
+- the browser says the request comes from this site and is the right kind: the game page only as the iframe, images only as image loads, sounds only as audio loads;
+- the file is on the allow-list.
 
-## Deploy on Vercel
+If the site has a service worker (a PWA, for example), it re-sends every request as its own fetch, so the browser's "what is this for" label is lost. Those requests are accepted only as a navigation coming from the home page (the game page) or an image/audio-style load coming from the game page (its files).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Everything else gets a 404. That covers typing a game URL into the address bar, opening one in a new tab, `view-source:`, `fetch()` from the console, other sites hotlinking the files or embedding the game, and guessing file paths.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### What this cannot do
+
+A browser has to download the game to run it. Someone determined can still copy what their own browser received (for example from the DevTools Network or Sources panel), and a script that first gets a session and then imitates a browser's headers can fetch the files. No web game can prevent that; the gate stops casual and automated direct access, not a visitor inspecting their own browser.
