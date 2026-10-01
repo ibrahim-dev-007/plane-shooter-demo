@@ -10,7 +10,7 @@ npm run build    # production build
 npm run start    # serve the production build
 ```
 
-For production, copy `.env.example` to `.env.local` and set `GAME_SECRET` to a long random value. Without it the server invents a temporary secret on every start, which only works for a single server process.
+No configuration is needed, including on Vercel: every build gets its own signing secret, shared by all server instances of that deployment. The only side effect is that a new deployment ends the game sessions of people who have the page open; they get a new one on reload. To keep sessions across deployments, set a `GAME_SECRET` environment variable (32+ random characters, see `.env.example`).
 
 ## Where things are
 

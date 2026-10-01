@@ -38,17 +38,20 @@ const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
 // ---------- Signing ----------
 const globalStore = globalThis as typeof globalThis & { __gameSecret?: Buffer };
 
+// Every server instance must sign with the same secret, or a session issued by
+// one instance is refused by the next (on Vercel that showed up as random 404s).
 function secret(): Buffer {
   if (!globalStore.__gameSecret) {
     const fromEnv = process.env.GAME_SECRET;
+    // Written into the server code by next.config.ts at build time, so all
+    // instances of one deployment share it without any setup.
+    const fromBuild = process.env.GAME_BUILD_SECRET;
     if (fromEnv && fromEnv.length >= 32) {
       globalStore.__gameSecret = Buffer.from(fromEnv);
+    } else if (fromBuild) {
+      globalStore.__gameSecret = Buffer.from(fromBuild);
     } else {
-      // Fine for one server process. Sessions end on restart, and several
-      // instances (or serverless) would not accept each other's sessions.
-      if (process.env.NODE_ENV === "production") {
-        console.warn("GAME_SECRET is not set (or shorter than 32 characters); using a temporary secret.");
-      }
+      console.warn("No game secret available; using a temporary one that only this process knows.");
       globalStore.__gameSecret = randomBytes(32);
     }
   }

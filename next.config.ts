@@ -1,7 +1,16 @@
+import { randomBytes } from "node:crypto";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+
+  // A fresh signing secret for every build, compiled into the server code. All
+  // server instances of a deployment share it, so game sessions work on Vercel
+  // without configuration. Only lib/game-gate.ts (server-only) reads it; set
+  // GAME_SECRET to override it and keep sessions alive across deployments.
+  env: {
+    GAME_BUILD_SECRET: randomBytes(32).toString("base64url"),
+  },
 
   // The game files are read from disk at request time, so make sure they are
   // shipped with the /play routes on serverless and standalone builds.
