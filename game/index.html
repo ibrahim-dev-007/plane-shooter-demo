@@ -146,6 +146,27 @@
     .btn.yellow { --c1: var(--yellow); --c2: var(--yellow-d); }
     .btn.red    { --c1: var(--red);    --c2: var(--red-d); }
     .btn.small  { max-width: 200px; font-size: 17px; padding: 10px 16px 9px; }
+    /* Loading bar */
+    .bar {
+      width: 100%;
+      max-width: 260px;
+      height: 28px;
+      margin-top: 12px;
+      box-sizing: border-box;
+      background: #d9c7a3;
+      border: 3px solid var(--ink);
+      border-radius: 14px;
+      box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+    }
+    .bar .fill {
+      width: 0;
+      height: 100%;
+      border-radius: 10px;
+      background: linear-gradient(var(--green), var(--green-d));
+      box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.4);
+      transition: width 0.2s;
+    }
     /* Sound / Music switches on the start screen */
     .toggles {
       display: flex;
@@ -314,7 +335,16 @@
   <button id="pauseBtn" aria-label="Pause">⏸</button>
 </div>
 
-<div id="startScreen" class="overlay">
+<div id="loadScreen" class="overlay">
+  <div class="panel">
+    <div class="tab">Plane Shooter</div>
+    <p class="hint">Getting your planes ready&hellip;</p>
+    <div class="bar"><div id="loadBar" class="fill"></div></div>
+    <p id="loadText">Loading 0%</p>
+  </div>
+</div>
+
+<div id="startScreen" class="overlay hidden">
   <div class="panel">
     <div class="tab">Plane Shooter</div>
     <p class="hint">Drag anywhere to fly (or use the arrow keys / WASD). Your guns fire automatically.<br>
@@ -487,7 +517,43 @@ const PLANES = [
   { file: './my-plane-2.png', name: 'Hornet' },
   { file: './my-plane-3.png', name: 'Phantom' }
 ];
-let pendingAssets = 0;
+// Every image and sound registers here, and the loading bar fills as they settle.
+// The main menu only appears once all of them are in, so nothing stalls mid-game.
+let totalAssets = 0, loadedAssets = 0, loadingDone = false;
+const loadScreen = $('loadScreen');
+const loadBar = $('loadBar');
+const loadText = $('loadText');
+
+function trackAsset() {
+  totalAssets++;
+  let settled = false;
+  return () => {
+    if (settled) return;
+    settled = true;
+    loadedAssets++;
+    updateLoading();
+  };
+}
+
+function updateLoading() {
+  const pct = Math.round(totalAssets ? loadedAssets / totalAssets * 100 : 100);
+  loadBar.style.width = pct + '%';
+  loadText.textContent = 'Loading ' + pct + '%';
+  if (loadedAssets >= totalAssets) finishLoading();
+}
+
+function finishLoading() {
+  if (loadingDone) return;
+  loadingDone = true;
+  loadBar.style.width = '100%';
+  loadText.textContent = 'Ready!';
+  enablePlay();
+  setTimeout(() => { // let the full bar be seen for a beat, then show the menu
+    loadScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    renderIdle();
+  }, 300);
+}
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -615,19 +681,23 @@ function roundRectPath(g, x, y, w, h, r) {
 
 function loadImage(src, onReady) {
   const img = new Image();
-  pendingAssets++;
+  const done = trackAsset();
   img.onload = () => {
     try { onReady(img); } catch (err) { console.error('Sprite failed: ' + src, err); }
-    assetSettled();
+    done();
   };
-  img.onerror = () => assetSettled(); // the game still runs, that sprite falls back to a plain shape
+  img.onerror = done; // the game still runs, that sprite falls back to a plain shape
   img.src = src;
   return img;
 }
 
-function assetSettled() {
-  pendingAssets--;
-  if (pendingAssets <= 0) enablePlay();
+// Sounds count toward the loading bar too. Some mobile browsers refuse to buffer
+// audio before the first tap, so each one gives up after a few seconds instead of blocking.
+function trackAudio(el) {
+  const done = trackAsset();
+  el.addEventListener('canplaythrough', done, { once: true });
+  el.addEventListener('error', done, { once: true });
+  setTimeout(done, 6000);
 }
 
 function enablePlay() {
@@ -674,7 +744,7 @@ function loadAssets() {
     SPR.bgs[i] = makeSeamless(img, 160);
     if (i === 0 && state === 'menu') renderIdle();
   }));
-  setTimeout(enablePlay, 8000); // never leave the Play button stuck on a slow asset
+  setTimeout(finishLoading, 15000); // never leave the player stuck on one slow asset
 }
 
 // ---------- Audio ----------
@@ -702,6 +772,7 @@ function makePool(src, count, volume) {
     const el = new Audio(src);
     el.preload = 'auto';
     el.volume = volume;
+    trackAudio(el);
     els.push(el);
   }
   return { els, next: 0, last: 0 };
@@ -719,6 +790,8 @@ const SFX = {
 const music = new Audio('./background.mp3');
 music.loop = true;
 music.volume = 0.4;
+music.preload = 'auto';
+trackAudio(music);
 
 function playSfx(pool, minGap) {
   if (!sfxOn) return;
