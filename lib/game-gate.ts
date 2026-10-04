@@ -18,6 +18,8 @@ type FileKind = "frame" | "image" | "audio";
 const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "index.html": { type: "text/html; charset=utf-8", kind: "frame" },
   "bg-sprite.png": { type: "image/png", kind: "image" },
+  "bg-sprite-1.png": { type: "image/png", kind: "image" },
+  "bg-sprite-2.png": { type: "image/png", kind: "image" },
   "boss.png": { type: "image/png", kind: "image" },
   "enemy-plane-1.png": { type: "image/png", kind: "image" },
   "enemy-plane-2.png": { type: "image/png", kind: "image" },
@@ -25,6 +27,9 @@ const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "explosion.png": { type: "image/png", kind: "image" },
   "missile.png": { type: "image/png", kind: "image" },
   "my-plane.png": { type: "image/png", kind: "image" },
+  "my-plane-1.png": { type: "image/png", kind: "image" },
+  "my-plane-2.png": { type: "image/png", kind: "image" },
+  "my-plane-3.png": { type: "image/png", kind: "image" },
   "powerup.png": { type: "image/png", kind: "image" },
   "tank-barrel.png": { type: "image/png", kind: "image" },
   "tank-body.png": { type: "image/png", kind: "image" },

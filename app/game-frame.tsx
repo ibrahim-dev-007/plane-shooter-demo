@@ -27,6 +27,24 @@ export default function GameFrame() {
   const [attempt, setAttempt] = useState(0);
   const frame = useRef<HTMLIFrameElement>(null);
 
+  // The game's Exit button asks the host page to leave. Pass it up if this page
+  // is itself embedded, otherwise go back to wherever the player came from.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frame.current?.contentWindow) return;
+      if (!event.data || event.data.type !== "planeCrashExit") return;
+      if (window.parent !== window) {
+        window.parent.postMessage(event.data, "*");
+      } else if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.close();
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     requestLaunch().then(

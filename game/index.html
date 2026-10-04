@@ -5,6 +5,18 @@
   <title>Plane Shooter Game with Tanks</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <style>
+    :root {
+      --ink: #3b2a1e;          /* dark outline used everywhere */
+      --cream: #f6e9cd;        /* panel fill */
+      --cream-2: #fff6e2;      /* card fill */
+      --tan: #d4b283;          /* panel border */
+      --brown: #8a6a45;        /* panel text */
+      --red: #f04d4d;   --red-d: #b92f2f;
+      --green: #74cc33; --green-d: #4c951a;
+      --blue: #3ea6ff;  --blue-d: #1f6fd0;
+      --yellow: #ffc83c; --yellow-d: #d0960c;
+      --grey: #b9b1a4;  --grey-d: #857b6c;
+    }
     html, body {
       margin: 0;
       padding: 0;
@@ -13,7 +25,7 @@
       background: #000;
       overflow: hidden;
       overscroll-behavior: none;
-      font-family: sans-serif;
+      font-family: "Arial Rounded MT Bold", "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
       -webkit-user-select: none;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
@@ -34,54 +46,240 @@
       width: 100%;
       height: 100%;
       box-sizing: border-box;
-      padding: 20px;
-      background: rgba(0, 0, 0, 0.82);
-      color: white;
+      padding: 40px 16px 20px;
+      background: radial-gradient(ellipse at center, rgba(78, 38, 110, 0.82), rgba(32, 12, 52, 0.92));
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       text-align: center;
       z-index: 10;
+      overflow-y: auto;
     }
-    .overlay h1 {
-      margin: 0 0 8px;
-      font-size: 40px;
-      letter-spacing: 1px;
-    }
-    .overlay p {
-      margin: 6px 0;
-      font-size: 17px;
-      color: #d8d8d8;
-    }
-    .overlay .big {
-      font-size: 26px;
-      color: #fff;
-      font-weight: bold;
-    }
-    .overlay .hint {
-      font-size: 14px;
-      color: #9aa;
+    /* The cream card with a tan rim and dark outline */
+    .panel {
+      position: relative;
+      box-sizing: border-box;
+      width: 100%;
       max-width: 340px;
-      line-height: 1.5;
+      padding: 38px 22px 22px;
+      background: var(--cream);
+      border: 5px solid var(--tan);
+      border-radius: 24px;
+      box-shadow: 0 0 0 3px var(--ink), 0 10px 0 3px rgba(0, 0, 0, 0.35);
+      color: var(--brown);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
+    .panel.wide { max-width: 420px; }
+    @media (min-width: 640px) { .panel.wide { max-width: 680px; } }
+    /* The red title tab sitting on the top edge of the panel */
+    .tab {
+      position: absolute;
+      top: -26px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 34px;
+      white-space: nowrap;
+      background: linear-gradient(var(--red), var(--red-d));
+      border: 3px solid var(--ink);
+      border-radius: 14px;
+      box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.35), 0 4px 0 var(--ink);
+      color: #fff;
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+    }
+    .panel p {
+      margin: 6px 0;
+      font-size: 16px;
+      color: var(--brown);
+      font-weight: 700;
+    }
+    .panel .big {
+      font-size: 26px;
+      color: var(--ink);
+      font-weight: 900;
+    }
+    .panel .hint {
+      font-size: 14px;
+      max-width: 300px;
+      line-height: 1.5;
+      font-weight: 600;
+    }
+    .panel .good { color: var(--green-d); }
     .hidden {
       display: none !important;
     }
-    button {
-      padding: 12px 32px;
-      margin-top: 20px;
+    /* Chunky 3D buttons: colored face, lighter top highlight, dark base */
+    .btn {
+      box-sizing: border-box;
+      width: 100%;
+      max-width: 260px;
+      margin: 12px 0 0;
+      padding: 12px 20px 11px;
+      font: inherit;
       font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #fff;
+      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+      border: 3px solid var(--ink);
+      border-radius: 14px;
       cursor: pointer;
-      background: #28a745;
-      border: none;
-      border-radius: 8px;
-      color: white;
+      background: linear-gradient(var(--c1), var(--c2));
+      box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.4), 0 5px 0 var(--c2), 0 5px 0 3px var(--ink);
+      transition: transform 0.08s, box-shadow 0.08s;
     }
-    button:disabled {
-      background: #555;
+    .btn:active:not(:disabled) {
+      transform: translateY(4px);
+      box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.4), 0 1px 0 var(--c2), 0 1px 0 3px var(--ink);
+    }
+    .btn:disabled {
+      --c1: var(--grey); --c2: var(--grey-d);
       cursor: default;
     }
+    .btn.green  { --c1: var(--green);  --c2: var(--green-d); }
+    .btn.blue   { --c1: var(--blue);   --c2: var(--blue-d); }
+    .btn.yellow { --c1: var(--yellow); --c2: var(--yellow-d); }
+    .btn.red    { --c1: var(--red);    --c2: var(--red-d); }
+    .btn.small  { max-width: 200px; font-size: 17px; padding: 10px 16px 9px; }
+    /* Sound / Music switches on the start screen */
+    .toggles {
+      display: flex;
+      justify-content: center;
+      gap: 34px;
+      margin: 4px 0 2px;
+    }
+    .toggle {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 6px;
+      margin: 0;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 900;
+      color: var(--brown);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .toggle .icon { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2)); }
+    .toggle .switch {
+      position: relative;
+      width: 54px;
+      height: 22px;
+      margin-top: 2px;
+      border-radius: 12px;
+      background: #c9ad83;
+      border: 2px solid var(--ink);
+      box-sizing: border-box;
+      box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.3);
+      transition: background 0.15s;
+    }
+    .toggle .switch::after {
+      content: '';
+      position: absolute;
+      top: -4px;
+      left: -2px;
+      width: 26px;
+      height: 26px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      background: linear-gradient(#fff, #e8e0d0);
+      border: 2px solid var(--ink);
+      box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+      transition: left 0.15s;
+    }
+    .toggle.on .switch { background: var(--green); }
+    .toggle.on .switch::after { left: 26px; }
+    .toggle .state { font-size: 11px; color: #a08a68; letter-spacing: 1px; }
+    .toggle.on .state { color: var(--green-d); }
+    /* Play history */
+    #historyList {
+      width: 100%;
+      max-height: 46vh;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 8px;
+      padding: 2px;
+      box-sizing: border-box;
+    }
+    .run {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      text-align: left;
+    }
+    .run.top { border-color: var(--yellow-d); background: #fff3cf; }
+    .run img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+    .run .info { flex: 1; min-width: 0; }
+    .run .plane-name { font-weight: 900; font-size: 15px; color: var(--ink); }
+    .run .meta { font-size: 12px; font-weight: 700; color: var(--brown); }
+    .run .score { font-weight: 900; font-size: 18px; color: var(--green-d); white-space: nowrap; }
+    .run.top .score { color: var(--yellow-d); }
+    /* Plane picker cards */
+    #planeList {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    @media (min-width: 640px) {
+      #planeList { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    #planeList .plane {
+      margin: 0;
+      padding: 12px 8px 10px;
+      font: inherit;
+      font-size: 14px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 16px;
+      box-shadow: 0 4px 0 var(--tan);
+      color: var(--ink);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    }
+    #planeList .plane img {
+      width: 72px;
+      height: 72px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.3));
+    }
+    #planeList .plane .name { font-weight: 900; font-size: 15px; }
+    #planeList .plane .status { font-size: 12px; font-weight: 700; color: var(--brown); }
+    #planeList .plane.selected {
+      border-color: var(--green-d);
+      background: #e6f7d3;
+      box-shadow: 0 4px 0 var(--green-d), 0 0 0 3px rgba(116, 204, 51, 0.35);
+      transform: translateY(-2px);
+    }
+    #planeList .plane.selected .status { color: var(--green-d); }
+    #planeList .plane.locked {
+      cursor: default;
+      background: #e9e0cd;
+      border-color: #c6b99f;
+      box-shadow: 0 4px 0 #c6b99f;
+    }
+    #planeList .plane.locked img { filter: grayscale(1) brightness(0.55) opacity(0.6); }
+    #planeList .plane.locked .name { color: #9a8f7c; }
+    /* In-game HUD */
     #hud {
       position: fixed;
       top: 10px;
@@ -93,13 +291,18 @@
     #hud button {
       margin: 0;
       padding: 0;
-      width: 40px;
-      height: 40px;
+      width: 42px;
+      height: 42px;
       font-size: 18px;
-      line-height: 40px;
-      background: rgba(0, 0, 0, 0.5);
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      line-height: 42px;
+      cursor: pointer;
+      color: var(--ink);
+      background: var(--cream);
+      border: 3px solid var(--ink);
+      border-radius: 12px;
+      box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
     }
+    #hud button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--tan), 0 1px 0 3px var(--ink); }
   </style>
 </head>
 <body>
@@ -112,24 +315,63 @@
 </div>
 
 <div id="startScreen" class="overlay">
-  <h1>Plane Shooter</h1>
-  <p class="hint">Drag anywhere to fly (or use the arrow keys / WASD). Your guns fire automatically.<br>
-    The longer you survive, the harder it gets &mdash; and the bosses keep coming.</p>
-  <p id="startBest"></p>
-  <button id="playBtn" disabled>Loading&hellip;</button>
+  <div class="panel">
+    <div class="tab">Plane Shooter</div>
+    <p class="hint">Drag anywhere to fly (or use the arrow keys / WASD). Your guns fire automatically.<br>
+      The longer you survive, the harder it gets &mdash; and the bosses keep coming.</p>
+    <p id="startBest"></p>
+    <div class="toggles">
+      <button id="sfxToggle" class="toggle" type="button" aria-label="Toggle sound effects">
+        <span class="icon">🔊</span>Sound<span class="switch"></span><span class="state">ON</span>
+      </button>
+      <button id="musicToggle" class="toggle" type="button" aria-label="Toggle music">
+        <span class="icon">🎵</span>Music<span class="switch"></span><span class="state">ON</span>
+      </button>
+    </div>
+    <button id="playBtn" class="btn green" disabled>Loading&hellip;</button>
+    <button id="historyBtn" class="btn blue">History</button>
+    <button id="exitBtn" class="btn red">Exit</button>
+  </div>
+</div>
+
+<div id="historyScreen" class="overlay hidden">
+  <div class="panel">
+    <div class="tab">History</div>
+    <p id="historyBest" class="big"></p>
+    <div id="historyList"></div>
+    <button id="historyBackBtn" class="btn red small">Back</button>
+  </div>
+</div>
+
+<div id="planeScreen" class="overlay hidden">
+  <div class="panel wide">
+    <div class="tab">Choose Plane</div>
+    <p class="hint">Defeat bosses to unlock more planes.</p>
+    <div id="planeList"></div>
+    <button id="startBtn" class="btn green">Start</button>
+    <button id="backBtn" class="btn red small">Back</button>
+  </div>
 </div>
 
 <div id="pauseScreen" class="overlay hidden">
-  <h1>Paused</h1>
-  <button id="resumeBtn">Resume</button>
+  <div class="panel">
+    <div class="tab">Paused</div>
+    <button id="resumeBtn" class="btn blue">Resume</button>
+    <button id="menuBtn" class="btn red">Main Menu</button>
+  </div>
 </div>
 
 <div id="overScreen" class="overlay hidden">
-  <h1>Game Over</h1>
-  <p id="finalScore" class="big"></p>
-  <p id="finalStats"></p>
-  <p id="finalBest"></p>
-  <button id="retryBtn">Retry</button>
+  <div class="panel">
+    <div class="tab">Game Over</div>
+    <p id="finalScore" class="big"></p>
+    <p id="finalStats"></p>
+    <p id="finalBest"></p>
+    <p id="finalUnlock" class="good hidden"></p>
+    <button id="retryBtn" class="btn green">Retry</button>
+    <button id="changePlaneBtn" class="btn yellow">Change Plane</button>
+    <button id="overMenuBtn" class="btn red">Main Menu</button>
+  </div>
 </div>
 
 <script>
@@ -196,6 +438,23 @@ const SHOT_COLORS = {
 // ---------- View ----------
 let W = 0, H = 0, DPR = 1, S = 1;
 
+// The chosen plane becomes the 'player' sprite set (body, white flash, shadow).
+function applyPlane() {
+  const k = 'plane' + selectedPlane;
+  if (!SPR[k]) return;
+  SPR.player = SPR[k];
+  SPR.player_w = SPR[k + '_w'];
+  SPR.player_s = SPR[k + '_s'];
+}
+
+// Planes have different shapes, so fit each inside the same square without stretching.
+function playerSize() {
+  const size = 88 * S;
+  const spr = SPR['plane' + selectedPlane];
+  const aspect = spr ? spr.width / spr.height : 1;
+  return aspect >= 1 ? { w: size, h: size / aspect } : { w: size * aspect, h: size };
+}
+
 function resizeCanvas() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
   W = window.innerWidth;
@@ -204,7 +463,8 @@ function resizeCanvas() {
   canvas.height = Math.round(H * DPR);
   S = clamp(Math.min(W, H) / 520, 0.7, 1.15); // sprite scale, so phones are not crowded
   if (player) {
-    player.w = player.h = 88 * S;
+    const ps = playerSize();
+    player.w = ps.w; player.h = ps.h;
     clampTarget();
     player.x = clamp(player.x, player.w / 2, W - player.w / 2);
     player.y = clamp(player.y, player.h / 2, H - player.h / 2);
@@ -216,7 +476,17 @@ function resizeCanvas() {
 
 // ---------- Sprites ----------
 // The source PNGs are huge, so every sprite is downscaled once into a small canvas.
-const SPR = {};
+const SPR = { bgs: [] };
+const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png'];
+const BG_FADE_TIME = 2.5; // seconds for a background cross-fade
+const BG_SWITCH_EVERY = 1; // bosses defeated per background change
+// Plane i unlocks once the player has defeated i bosses; the first is always available.
+const PLANES = [
+  { file: './my-plane.png', name: 'Falcon' },
+  { file: './my-plane-1.png', name: 'Raptor' },
+  { file: './my-plane-2.png', name: 'Hornet' },
+  { file: './my-plane-3.png', name: 'Phantom' }
+];
 let pendingAssets = 0;
 
 function makeCanvas(w, h) {
@@ -370,7 +640,10 @@ function loadAssets() {
   SPR.bolt_yellow = makeBolt('#ffd60a');
   SPR.bolt_cyan = makeBolt('#32e0ff');
 
-  loadImage('./my-plane.png', img => addSprite('player', scaled(img, 220), true));
+  PLANES.forEach((p, i) => loadImage(p.file, img => {
+    addSprite('plane' + i, scaled(img, 220), true);
+    if (i === selectedPlane) applyPlane();
+  }));
   loadImage('./enemy-plane-1.png', img => {
     addSprite('enemy1', scaled(img, 180), true);
     addTint('kamikaze', 'enemy1', '#ff1f1f', 0.45);
@@ -396,10 +669,11 @@ function loadAssets() {
   loadImage('./missile.png', img => addSprite('weapon', scaled(img, 96), false));
   loadImage('./powerup.png', img => addSprite('health', scaled(img, 128), false));
   loadImage('./explosion.png', img => { SPR.explosion = scaled(img, 1200); });
-  loadImage('./bg-sprite.png', img => {
-    SPR.bg = makeSeamless(img, 160);
-    if (state === 'menu') renderIdle();
-  });
+  // Backgrounds cycle every 2nd boss; each is loaded into its slot so the order is stable.
+  BG_FILES.forEach((src, i) => loadImage(src, img => {
+    SPR.bgs[i] = makeSeamless(img, 160);
+    if (i === 0 && state === 'menu') renderIdle();
+  }));
   setTimeout(enablePlay, 8000); // never leave the Play button stuck on a slow asset
 }
 
@@ -417,7 +691,10 @@ function writeStore(key, value) {
   try { localStorage.setItem(key, value); } catch (err) { /* storage may be blocked in an iframe */ }
 }
 
-let muted = readStore('planeCrashMuted', '0') === '1';
+// Older saves had one mute flag; it seeds both switches the first time.
+const legacyMuted = readStore('planeCrashMuted', '0') === '1';
+let sfxOn = readStore('planeCrashSfx', legacyMuted ? '0' : '1') === '1';
+let musicOn = readStore('planeCrashMusic', legacyMuted ? '0' : '1') === '1';
 
 function makePool(src, count, volume) {
   const els = [];
@@ -444,7 +721,7 @@ music.loop = true;
 music.volume = 0.4;
 
 function playSfx(pool, minGap) {
-  if (muted) return;
+  if (!sfxOn) return;
   const now = performance.now();
   if (minGap && now - pool.last < minGap) return;
   pool.last = now;
@@ -478,17 +755,38 @@ function unlockAudio() {
 }
 
 function playMusic() {
-  if (muted) return;
+  if (!musicOn) return;
   const p = music.play();
   if (p && p.catch) p.catch(() => {});
 }
 
-function setMuted(value) {
-  muted = value;
-  writeStore('planeCrashMuted', muted ? '1' : '0');
-  muteBtn.textContent = muted ? '🔇' : '🔊';
-  if (muted) music.pause();
+function setSfx(on) {
+  sfxOn = on;
+  writeStore('planeCrashSfx', on ? '1' : '0');
+  syncAudioUi();
+}
+
+function setMusic(on) {
+  musicOn = on;
+  writeStore('planeCrashMusic', on ? '1' : '0');
+  if (!on) music.pause();
   else if (state === 'playing') playMusic();
+  syncAudioUi();
+}
+
+// The in-game button and the M key mute everything at once.
+function toggleAllAudio() {
+  const anyOn = sfxOn || musicOn;
+  setSfx(!anyOn);
+  setMusic(!anyOn);
+}
+
+function syncAudioUi() {
+  muteBtn.textContent = sfxOn || musicOn ? '🔊' : '🔇';
+  sfxToggle.classList.toggle('on', sfxOn);
+  sfxToggle.querySelector('.state').textContent = sfxOn ? 'ON' : 'OFF';
+  musicToggle.classList.toggle('on', musicOn);
+  musicToggle.querySelector('.state').textContent = musicOn ? 'ON' : 'OFF';
 }
 
 // ---------- Game state ----------
@@ -499,6 +797,9 @@ let explosions = [], particles = [], texts = [];
 let boss = null, bossIndex = 0, bossTimer = 0, warning = null;
 let score = 0, kills = 0, bossesDefeated = 0;
 let best = parseInt(readStore('planeCrashBest', '0'), 10) || 0;
+let unlockedPlanes = clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, PLANES.length);
+let selectedPlane = clamp(parseInt(readStore('planeCrashPlane', '0'), 10) || 0, 0, unlockedPlanes - 1);
+let unlockedThisRun = null; // name of a plane unlocked during the current run, for the game-over screen
 let elapsed = 0;      // seconds survived, drives the difficulty
 let clock = 0;        // animation clock
 let D = difficulty(0);
@@ -506,15 +807,18 @@ let level = 1, levelPulse = 0;
 let enemyTimer = 0, tankTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
 let deathTimer = 0;
 let bgScroll = 0, shake = 0, hurtFlash = 0;
+let bgIndex = 0, bgFade = null; // bgFade = { from, to, t } while cross-fading
 let banner = null;
 let rafId = 0, lastFrame = 0;
 
 function resetGame() {
+  applyPlane();
   const size = 88 * S;
+  const ps = playerSize();
   player = {
     x: W / 2, y: H - size * 0.9,
     tx: W / 2, ty: H - size * 0.9, // where the controls want the plane to be
-    w: size, h: size,
+    w: ps.w, h: ps.h,
     hp: 5, maxHp: 5,
     alive: true,
     invuln: 0,
@@ -532,6 +836,8 @@ function resetGame() {
   enemyTimer = 0.8; tankTimer = 8; weaponDropTimer = 12; healthDropTimer = 28;
   deathTimer = 0;
   bgScroll = 0; shake = 0; hurtFlash = 0;
+  bgIndex = 0; bgFade = null;
+  unlockedThisRun = null;
   banner = null;
   drag = null;
   keys.clear();
@@ -580,12 +886,16 @@ window.addEventListener('keydown', e => {
     keys.add(e.code);
     e.preventDefault();
   } else if (e.code === 'KeyP' || e.code === 'Escape') {
-    if (state === 'playing') pauseGame();
+    if (!historyScreen.classList.contains('hidden')) closeHistory();
+    else if (state === 'playing') pauseGame();
     else if (state === 'paused') resumeGame();
   } else if (e.code === 'KeyM') {
-    setMuted(!muted);
+    toggleAllAudio();
   } else if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
-    if ((state === 'menu' && !playBtn.disabled) || state === 'over') startGame();
+    if (!historyScreen.classList.contains('hidden')) { /* reading history */ }
+    else if (!planeScreen.classList.contains('hidden')) startGame();
+    else if (state === 'menu' && !playBtn.disabled) openPlanePicker(startScreen);
+    else if (state === 'over') startGame();
     else if (state === 'paused') resumeGame();
     e.preventDefault();
   }
@@ -1214,6 +1524,23 @@ function finishBoss(b) {
   bossIndex++;
   bossesDefeated++;
   bossTimer = BOSS_GAP;
+  if (bossesDefeated % BG_SWITCH_EVERY === 0) nextBackground();
+  unlockPlane(bossesDefeated);
+}
+
+function unlockPlane(index) {
+  if (index >= PLANES.length || index < unlockedPlanes) return;
+  unlockedPlanes = index + 1;
+  writeStore('planeCrashUnlocked', String(unlockedPlanes));
+  unlockedThisRun = PLANES[index].name;
+  showBanner('NEW PLANE UNLOCKED', PLANES[index].name, '#32e0ff', 2.6);
+}
+
+function nextBackground() {
+  if (SPR.bgs.length < 2) return;
+  const to = (bgIndex + 1) % BG_FILES.length;
+  bgFade = { from: bgIndex, to, t: 0 };
+  bgIndex = to;
 }
 
 function updateBoss(dt) {
@@ -1371,6 +1698,10 @@ function update(dt) {
     D = difficulty(elapsed);
   }
   bgScroll += D.scroll * dt;
+  if (bgFade) {
+    bgFade.t += dt / BG_FADE_TIME;
+    if (bgFade.t >= 1) bgFade = null;
+  }
 
   if (state === 'playing') {
     updatePlayer(dt);
@@ -1395,12 +1726,25 @@ function update(dt) {
 
 // ---------- Rendering ----------
 function drawBackground() {
-  const bg = SPR.bg;
-  if (!bg) {
+  const cur = SPR.bgs[bgIndex] || SPR.bgs[0];
+  if (!cur) {
     ctx.fillStyle = '#6f8f3a';
     ctx.fillRect(0, 0, W, H);
     return;
   }
+  if (bgFade && SPR.bgs[bgFade.from] && SPR.bgs[bgFade.to]) {
+    // smooth ease-in-out cross-fade from the old background to the new one
+    const k = bgFade.t < 0.5 ? 2 * bgFade.t * bgFade.t : 1 - Math.pow(-2 * bgFade.t + 2, 2) / 2;
+    drawBackgroundLayer(SPR.bgs[bgFade.from]);
+    ctx.globalAlpha = k;
+    drawBackgroundLayer(SPR.bgs[bgFade.to]);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  drawBackgroundLayer(cur);
+}
+
+function drawBackgroundLayer(bg) {
   // cover the screen without stretching, then tile vertically
   const scale = Math.max(W / bg.width, H / bg.height);
   const tw = bg.width * scale;
@@ -1683,9 +2027,56 @@ function startLoop() {
   rafId = requestAnimationFrame(frame);
 }
 
+let pickerReturn = null; // the overlay to go back to when the plane picker closes
+
+function renderPlanePicker() {
+  planeList.innerHTML = '';
+  PLANES.forEach((p, i) => {
+    const locked = i >= unlockedPlanes;
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'plane' + (locked ? ' locked' : '') + (i === selectedPlane ? ' selected' : '');
+    const img = document.createElement('img');
+    img.src = p.file;
+    img.alt = '';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = p.name;
+    const status = document.createElement('span');
+    status.className = 'status';
+    status.textContent = locked ? '\uD83D\uDD12 Defeat boss ' + i : (i === selectedPlane ? 'Selected' : 'Unlocked');
+    card.append(img, name, status);
+    if (locked) {
+      card.disabled = true;
+    } else {
+      card.addEventListener('click', () => {
+        selectedPlane = i;
+        writeStore('planeCrashPlane', String(i));
+        renderPlanePicker();
+      });
+    }
+    planeList.appendChild(card);
+  });
+}
+
+function openPlanePicker(from) {
+  pickerReturn = from;
+  from.classList.add('hidden');
+  renderPlanePicker();
+  planeScreen.classList.remove('hidden');
+}
+
+function closePlanePicker() {
+  planeScreen.classList.add('hidden');
+  if (pickerReturn) pickerReturn.classList.remove('hidden');
+  pickerReturn = null;
+}
+
 function startGame() {
+  pickerReturn = null;
   startScreen.classList.add('hidden');
   overScreen.classList.add('hidden');
+  planeScreen.classList.add('hidden');
   pauseScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   resetGame();
@@ -1713,6 +2104,117 @@ function resumeGame() {
   startLoop();
 }
 
+// ---------- Play history ----------
+const HISTORY_MAX = 30;
+
+function readHistory() {
+  try {
+    const h = JSON.parse(readStore('planeCrashHistory', '[]'));
+    return Array.isArray(h) ? h : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+function addHistory(run) {
+  const h = readHistory();
+  h.unshift(run);
+  if (h.length > HISTORY_MAX) h.length = HISTORY_MAX;
+  writeStore('planeCrashHistory', JSON.stringify(h));
+}
+
+function formatDate(t) {
+  const d = new Date(t);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' +
+    d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderHistory() {
+  const h = readHistory();
+  const top = h.reduce((m, r) => Math.max(m, r.score || 0), 0);
+  historyBestEl.textContent = 'High Score: ' + Math.max(best, top);
+  historyList.innerHTML = '';
+  if (!h.length) {
+    const p = document.createElement('p');
+    p.className = 'hint';
+    p.textContent = 'No games played yet.';
+    historyList.appendChild(p);
+    return;
+  }
+  let topShown = false;
+  for (const r of h) {
+    const plane = PLANES[r.plane] || PLANES[0];
+    const row = document.createElement('div');
+    const isTop = !topShown && r.score === top && top > 0;
+    if (isTop) topShown = true;
+    row.className = 'run' + (isTop ? ' top' : '');
+    const img = document.createElement('img');
+    img.src = plane.file;
+    img.alt = '';
+    const info = document.createElement('div');
+    info.className = 'info';
+    const name = document.createElement('div');
+    name.className = 'plane-name';
+    name.textContent = plane.name + (isTop ? ' \u2605' : '');
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = formatTime(r.time || 0) + ' \u00b7 Lv ' + (r.level || 1) + ' \u00b7 ' +
+      (r.bosses || 0) + ' boss' + (r.bosses === 1 ? '' : 'es') + ' \u00b7 ' + formatDate(r.t);
+    info.append(name, meta);
+    const score = document.createElement('div');
+    score.className = 'score';
+    score.textContent = String(r.score);
+    row.append(img, info, score);
+    historyList.appendChild(row);
+  }
+}
+
+function openHistory() {
+  renderHistory();
+  startScreen.classList.add('hidden');
+  historyScreen.classList.remove('hidden');
+}
+
+function closeHistory() {
+  historyScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+// Leave the game. The hosting page is told first so it can decide where to go;
+// if nobody is listening, fall back to the browser history.
+function exitGame() {
+  music.pause();
+  let told = false;
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'planeCrashExit' }, '*');
+      told = true;
+    }
+  } catch (err) { /* cross-origin parent without access: the message still went out */ }
+  if (told) return;
+  if (history.length > 1) history.back();
+  else window.close();
+}
+
+// Abandon the current run and go back to the start screen.
+function exitToMenu() {
+  if (state !== 'paused' && state !== 'over') return;
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = 0;
+  state = 'menu';
+  player = null;
+  boss = null;
+  drag = null;
+  keys.clear();
+  music.pause();
+  pauseScreen.classList.add('hidden');
+  overScreen.classList.add('hidden');
+  hud.classList.add('hidden');
+  if (best > 0) $('startBest').textContent = 'Best: ' + best;
+  startScreen.classList.remove('hidden');
+  renderIdle();
+}
+
 function gameOver() {
   state = 'over';
   music.pause();
@@ -1725,6 +2227,9 @@ function gameOver() {
   finalStatsEl.textContent = 'Survived ' + formatTime(elapsed) + '  ·  Level ' + level +
     '  ·  Bosses destroyed: ' + bossesDefeated;
   finalBestEl.textContent = isBest && score > 0 ? 'New best score!' : 'Best: ' + best;
+  addHistory({ t: Date.now(), plane: selectedPlane, score, time: Math.round(elapsed), level, bosses: bossesDefeated });
+  finalUnlockEl.textContent = unlockedThisRun ? 'New plane unlocked: ' + unlockedThisRun : '';
+  finalUnlockEl.classList.toggle('hidden', !unlockedThisRun);
   hud.classList.add('hidden');
   overScreen.classList.remove('hidden');
 }
@@ -1733,6 +2238,14 @@ function gameOver() {
 const startScreen = $('startScreen');
 const pauseScreen = $('pauseScreen');
 const overScreen = $('overScreen');
+const planeScreen = $('planeScreen');
+const historyScreen = $('historyScreen');
+const historyList = $('historyList');
+const historyBestEl = $('historyBest');
+const sfxToggle = $('sfxToggle');
+const musicToggle = $('musicToggle');
+const planeList = $('planeList');
+const finalUnlockEl = $('finalUnlock');
 const hud = $('hud');
 const playBtn = $('playBtn');
 const muteBtn = $('muteBtn');
@@ -1740,9 +2253,17 @@ const finalScoreEl = $('finalScore');
 const finalStatsEl = $('finalStats');
 const finalBestEl = $('finalBest');
 
-playBtn.addEventListener('click', startGame);
+playBtn.addEventListener('click', () => openPlanePicker(startScreen));
+$('startBtn').addEventListener('click', startGame);
+$('historyBtn').addEventListener('click', openHistory);
+$('historyBackBtn').addEventListener('click', closeHistory);
+$('exitBtn').addEventListener('click', exitGame);
+$('backBtn').addEventListener('click', closePlanePicker);
 $('retryBtn').addEventListener('click', startGame);
+$('changePlaneBtn').addEventListener('click', () => openPlanePicker(overScreen));
+$('overMenuBtn').addEventListener('click', exitToMenu);
 $('resumeBtn').addEventListener('click', resumeGame);
+$('menuBtn').addEventListener('click', exitToMenu);
 // blur after a click so Space/Enter never re-trigger a focused HUD button
 $('pauseBtn').addEventListener('click', e => {
   e.currentTarget.blur();
@@ -1750,15 +2271,17 @@ $('pauseBtn').addEventListener('click', e => {
 });
 muteBtn.addEventListener('click', () => {
   muteBtn.blur();
-  setMuted(!muted);
+  toggleAllAudio();
 });
+sfxToggle.addEventListener('click', () => setSfx(!sfxOn));
+musicToggle.addEventListener('click', () => setMusic(!musicOn));
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) pauseGame();
 });
 window.addEventListener('resize', resizeCanvas);
 
-muteBtn.textContent = muted ? '🔇' : '🔊';
+syncAudioUi();
 if (best > 0) $('startBest').textContent = 'Best: ' + best;
 resizeCanvas();
 loadAssets();
