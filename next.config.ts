@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
 
   // A fresh signing secret for every build, compiled into the server code. All
   // server instances of a deployment share it, so game sessions work on Vercel
-  // without configuration. Only lib/game-gate.ts (server-only) reads it; set
+  // without configuration. Only lib/signing.ts (server-only) reads it; set
   // GAME_SECRET to override it and keep sessions alive across deployments.
   env: {
     GAME_BUILD_SECRET: randomBytes(32).toString("base64url"),

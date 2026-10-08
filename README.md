@@ -18,11 +18,40 @@ No configuration is needed, including on Vercel: every build gets its own signin
 | --- | --- |
 | `game/` | The game itself: `index.html` plus its images and sounds. Edit the game here. |
 | `lib/game-gate.ts` | Decides who may fetch the game files, and the list of files that may be served. |
+| `lib/signing.ts` | The shared HMAC secret and token helpers used by sessions and payments. |
+| `lib/payments.ts` | The shop catalog (prices) and the demo phone + OTP payment flow. |
 | `app/play/launch/route.ts` | Starts a game session (signed cookie) and returns the private game URL. |
 | `app/play/[ticket]/[file]/route.ts` | Serves the game page, images and sounds to the game iframe only. |
+| `app/api/payment/start/route.ts` | Checkout step 1: item + phone number in, pending-payment token (and demo OTP) out. |
+| `app/api/payment/confirm/route.ts` | Checkout step 2: token + OTP in, signed receipt out. |
 | `app/game-frame.tsx` | The full-screen iframe on the home page. |
 
 If the game starts using a new image or sound, put the file in `game/` and add it to `GAME_FILES` in `lib/game-gate.ts`. Files that are not on that list are never served.
+
+## Shop and payments (demo)
+
+The start screen has a **Shop** with three paid upgrades. The upgrades work for real; the payment does not move money.
+
+| Item | Price | What it does |
+| --- | --- | --- |
+| Full Hangar | ৳99 | Unlocks all four standard planes at once (also offered on the plane picker while planes are locked). |
+| Armor Plating | ৳49 | Three runs that start with 7 health instead of 5. One is used up each time a run starts (a revive does not use another). |
+| Revive Pack | ৳99 | Three revives. The game-over screen gets a **Continue** button that resumes the run with full health, keeping score, level, time and the current boss. With no revives left, Continue opens the checkout for a pack and resumes once it is paid. |
+
+Four **PRO planes** are sold one by one, from the shop or straight from the plane picker. Each is a recoloured standard sprite with its own perk, defined in `PLANES` in `game/index.html`:
+
+| Plane | Price | Perk |
+| --- | --- | --- |
+| Titan | ৳149 | +25% max health (stacks with Armor Plating). |
+| Striker | ৳149 | +15% rate of fire. |
+| Aegis | ৳199 | Takes 15% less damage from every hit. |
+| Wraith | ৳179 | Pulls nearby pick-ups to the plane and scores +5% on everything. |
+
+The start screen also shows a **pilot profile**: a name and avatar the player picks, a rank earned by bosses destroyed over all games (Cadet → Pilot → Veteran → Ace → Commander → Legend), and lifetime stats. It lives in the browser under the `localStorage` key `planeCrashProfile`.
+
+Checkout is a popup inside the game: enter a mobile number, "receive" a 6-digit OTP (the demo shows it on screen in a fake SMS bubble), enter it, done. Wrong codes are allowed three times, codes expire after 5 minutes, and the whole flow is stateless: each step is a signed token, so it works on serverless hosts without a database. Purchases are stored in the browser (`localStorage` key `planeCrashWallet`) together with the signed receipts: `hangar` is a flag, `armor` and `revives` are counters.
+
+To plug in a real provider (bKash, Nagad, SSLCommerz, Stripe, ...), replace `startPayment()` and `confirmPayment()` in `lib/payments.ts` with the provider's create and execute/verify calls and stop returning `demoOtp`. Prices live in `CATALOG` there and in `SHOP` inside `game/index.html`; keep the two in step. The currency sign is the `CURRENCY` constant in the game.
 
 ## How the game files are protected
 

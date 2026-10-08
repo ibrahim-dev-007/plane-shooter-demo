@@ -30,7 +30,7 @@
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    canvas {
+    #game { /* the game canvas only; plane thumbnails are canvases too */
       position: fixed;
       top: 0;
       left: 0;
@@ -50,7 +50,9 @@
       background: radial-gradient(ellipse at center, rgba(78, 38, 110, 0.82), rgba(32, 12, 52, 0.92));
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      /* The panel centres itself with auto margins. justify-content: center would
+         push the top of a panel taller than the screen out of reach. */
+      justify-content: flex-start;
       align-items: center;
       text-align: center;
       z-index: 10;
@@ -60,6 +62,8 @@
     .panel {
       position: relative;
       box-sizing: border-box;
+      flex: none;
+      margin: auto 0;
       width: 100%;
       max-width: 340px;
       padding: 38px 22px 22px;
@@ -220,30 +224,39 @@
     .toggle.on .switch::after { left: 26px; }
     .toggle .state { font-size: 11px; color: #a08a68; letter-spacing: 1px; }
     .toggle.on .state { color: var(--green-d); }
-    /* Play history */
+    /* Play history: the panel grows to the screen and the list scrolls inside it,
+       so the Back button always stays in view. Two columns once there is room. */
+    #historyScreen .panel { max-height: 100%; }
     #historyList {
       width: 100%;
-      max-height: 46vh;
+      flex: 1 1 auto;
+      min-height: 110px;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
       gap: 8px;
       margin-top: 8px;
       padding: 2px;
       box-sizing: border-box;
     }
+    @media (min-width: 640px) {
+      #historyList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    #historyList .hint { grid-column: 1 / -1; }
     .run {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 12px;
+      min-width: 0;
+      padding: 8px 10px;
       background: var(--cream-2);
       border: 3px solid var(--tan);
       border-radius: 14px;
       text-align: left;
     }
     .run.top { border-color: var(--yellow-d); background: #fff3cf; }
-    .run img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+    .run img, .run canvas { width: 40px; height: 40px; object-fit: contain; flex: none; }
     .run .info { flex: 1; min-width: 0; }
     .run .plane-name { font-weight: 900; font-size: 15px; color: var(--ink); }
     .run .meta { font-size: 12px; font-weight: 700; color: var(--brown); }
@@ -261,6 +274,7 @@
       #planeList { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
     #planeList .plane {
+      position: relative; /* anchors the PRO ribbon */
       margin: 0;
       padding: 12px 8px 10px;
       font: inherit;
@@ -277,7 +291,8 @@
       gap: 6px;
       transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
     }
-    #planeList .plane img {
+    #planeList .plane img,
+    #planeList .plane canvas {
       width: 72px;
       height: 72px;
       object-fit: contain;
@@ -285,6 +300,170 @@
     }
     #planeList .plane .name { font-weight: 900; font-size: 15px; }
     #planeList .plane .status { font-size: 12px; font-weight: 700; color: var(--brown); }
+    #planeList .plane .perk { font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--blue-d); }
+    /* Premium planes: gold rim, PRO ribbon, and a price pill until they are bought */
+    #planeList .plane.premium:not(.selected) {
+      border-color: var(--yellow-d);
+      background: #fff6d6;
+      box-shadow: 0 4px 0 var(--yellow-d);
+    }
+    #planeList .plane.premium.locked {
+      cursor: pointer;
+      background: #f6eedc;
+      border-color: #d9bf8a;
+      box-shadow: 0 4px 0 #d9bf8a;
+    }
+    #planeList .plane.premium.locked img,
+    #planeList .plane.premium.locked canvas { filter: grayscale(0.35) opacity(0.8); }
+    #planeList .plane.premium.locked .name { color: var(--ink); }
+    #planeList .plane .ribbon {
+      position: absolute;
+      top: -9px;
+      right: -9px;
+      padding: 2px 8px;
+      background: linear-gradient(var(--yellow), var(--yellow-d));
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+    #planeList .plane .buy {
+      margin-top: 2px;
+      padding: 4px 12px;
+      background: linear-gradient(var(--green), var(--green-d));
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+    /* The "unlock all standard planes" strip under the plane picker */
+    .offer {
+      display: flex;
+      flex-wrap: wrap; /* on narrow screens the price pill drops to its own line */
+      align-items: center;
+      gap: 8px 10px;
+      width: 100%;
+      max-width: 420px;
+      box-sizing: border-box;
+      margin: 12px 0 0;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--ink);
+      text-align: left;
+      background: linear-gradient(#fff8e0, #ffe9a8);
+      border: 3px solid var(--yellow-d);
+      border-radius: 14px;
+      box-shadow: 0 4px 0 var(--yellow-d);
+      cursor: pointer;
+      transition: transform 0.08s, box-shadow 0.08s;
+    }
+    .offer:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }
+    .offer .ic { font-size: 26px; line-height: 1; }
+    .offer .txt { flex: 1 1 170px; min-width: 0; display: flex; flex-direction: column; }
+    .offer .sub { font-size: 11px; font-weight: 700; color: var(--brown); }
+    .offer .pill {
+      flex: none;
+      margin-left: auto;
+      padding: 6px 12px;
+      background: linear-gradient(var(--green), var(--green-d));
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      font-size: 13px;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+    }
+    .shop-head {
+      grid-column: 1 / -1;
+      margin: 4px 0 -4px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #a08a68;
+    }
+    .item canvas { width: 48px; height: 48px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.25)); }
+    /* Pilot profile */
+    .pilot-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0 0 8px;
+      padding: 7px 12px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      font: inherit;
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+    }
+    .pilot-chip .av { font-size: 30px; line-height: 1; }
+    .pilot-chip .txt { display: flex; flex-direction: column; min-width: 0; }
+    .pilot-chip .nm { font-weight: 900; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pilot-chip .rk { font-size: 12px; font-weight: 800; color: var(--blue-d); }
+    .pilot-chip .go { margin-left: auto; font-size: 12px; font-weight: 800; color: #a08a68; white-space: nowrap; }
+    .avatar-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+    .avatar {
+      flex: none;
+      width: 72px;
+      height: 72px;
+      margin: 0;
+      padding: 0;
+      font: inherit;
+      font-size: 40px;
+      line-height: 1;
+      border-radius: 50%;
+      border: 3px solid var(--ink);
+      background: linear-gradient(#fff, #e8e0d0);
+      box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
+      cursor: pointer;
+    }
+    .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .who .field { max-width: none; margin: 0; padding: 8px 12px; font-size: 18px; letter-spacing: 0; text-align: left; }
+    .rank { padding-left: 4px; font-size: 13px; font-weight: 900; color: var(--blue-d); text-align: left; }
+    .rank small { font-size: 11px; font-weight: 700; color: #a08a68; }
+    .avatars { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+    .avatars button {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      margin: 0;
+      font-size: 26px;
+      line-height: 1;
+      border-radius: 12px;
+      border: 2px solid var(--tan);
+      background: var(--cream-2);
+      cursor: pointer;
+    }
+    .avatars button.on { border-color: var(--green-d); background: #e6f7d3; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+      margin-top: 12px;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 12px;
+    }
+    .stat b { font-size: 18px; font-weight: 900; color: var(--ink); }
+    .stat span { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #a08a68; }
     #planeList .plane.selected {
       border-color: var(--green-d);
       background: #e6f7d3;
@@ -324,6 +503,144 @@
       box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
     }
     #hud button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--tan), 0 1px 0 3px var(--ink); }
+    /* Shop */
+    #shopList {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 10px 8px 9px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      box-shadow: 0 3px 0 var(--tan);
+      text-align: center;
+    }
+    .item.owned { border-color: var(--green-d); background: #e6f7d3; box-shadow: 0 3px 0 var(--green-d); }
+    .item .icon { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.15)); }
+    .item .name { font-weight: 900; font-size: 14px; color: var(--ink); }
+    .item .desc { flex: 1; font-size: 11px; font-weight: 600; color: var(--brown); line-height: 1.35; }
+    .item .have { font-size: 12px; font-weight: 800; color: var(--yellow-d); }
+    .item .owned-tag { margin-top: 6px; padding: 7px 0 6px; font-weight: 900; font-size: 15px; color: var(--green-d); }
+    /* Shop buy buttons: the same compact pill as the plane picker, not the big 3D button */
+    .item .btn {
+      width: auto;
+      max-width: none;
+      margin-top: 6px;
+      padding: 7px 18px 6px;
+      font-size: 14px;
+      letter-spacing: 0;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 2px 0 var(--ink);
+    }
+    .item .btn:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 0 0 var(--ink);
+    }
+    /* Checkout popup: sits above whichever screen opened it */
+    .modal { z-index: 20; background: rgba(10, 4, 20, 0.72); }
+    .step { width: 100%; display: flex; flex-direction: column; align-items: center; }
+    .dots { display: flex; gap: 7px; justify-content: center; margin: 0 0 8px; }
+    .dots span {
+      width: 11px;
+      height: 11px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      background: #d9c7a3;
+      border: 2px solid var(--ink);
+    }
+    .dots span.on { background: var(--green); }
+    .summary {
+      width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 2px 0 6px;
+      padding: 10px 14px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 16px;
+      color: var(--ink);
+      text-align: left;
+    }
+    .summary .price { color: var(--yellow-d); font-size: 20px; white-space: nowrap; }
+    #payItem { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    #payItem canvas, #payItem img { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25)); }
+    .field {
+      width: 100%;
+      max-width: 260px;
+      margin: 8px 0 0;
+      padding: 10px 14px;
+      box-sizing: border-box;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-align: center;
+      color: var(--ink);
+      background: #fff;
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.12);
+      outline: none;
+    }
+    .field:focus { border-color: var(--blue-d); }
+    .field.otp { letter-spacing: 8px; font-size: 26px; }
+    .field::placeholder { color: #b9ab93; letter-spacing: 0; font-size: 16px; font-weight: 700; }
+    .field.otp::placeholder { letter-spacing: 8px; font-size: 26px; }
+    .sms {
+      width: 100%;
+      max-width: 260px;
+      box-sizing: border-box;
+      margin: 10px 0 0;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--brown);
+      background: #e9f3ff;
+      border: 2px dashed var(--blue-d);
+      border-radius: 12px;
+    }
+    .sms b { color: var(--blue-d); font-size: 18px; letter-spacing: 3px; }
+    .error { min-height: 18px; margin: 6px 0 0; font-size: 14px; font-weight: 800; color: var(--red-d); }
+    .link {
+      margin: 12px 0 0;
+      padding: 0;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--blue-d);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .spinner {
+      width: 54px;
+      height: 54px;
+      margin: 14px auto;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 6px solid #d9c7a3;
+      border-top-color: var(--green-d);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .check { font-size: 56px; line-height: 1; margin: 6px 0; }
+    .receipt { font-size: 12px; font-weight: 700; color: #a08a68; }
   </style>
 </head>
 <body>
@@ -349,6 +666,11 @@
     <div class="tab">Plane Shooter</div>
     <p class="hint">Drag anywhere to fly (or use the arrow keys / WASD). Your guns fire automatically.<br>
       The longer you survive, the harder it gets &mdash; and the bosses keep coming.</p>
+    <button id="profileBtn" class="pilot-chip" type="button">
+      <span id="chipAvatar" class="av"></span>
+      <span class="txt"><span id="chipName" class="nm"></span><span id="chipRank" class="rk"></span></span>
+      <span class="go">Profile &rsaquo;</span>
+    </button>
     <p id="startBest"></p>
     <div class="toggles">
       <button id="sfxToggle" class="toggle" type="button" aria-label="Toggle sound effects">
@@ -358,14 +680,48 @@
         <span class="icon">🎵</span>Music<span class="switch"></span><span class="state">ON</span>
       </button>
     </div>
+    
     <button id="playBtn" class="btn green" disabled>Loading&hellip;</button>
+    <button id="shopBtn" class="btn yellow">Shop</button>
     <button id="historyBtn" class="btn blue">History</button>
     <button id="exitBtn" class="btn red">Exit</button>
   </div>
 </div>
 
-<div id="historyScreen" class="overlay hidden">
+<div id="profileScreen" class="overlay hidden">
   <div class="panel">
+    <div class="tab">Pilot Profile</div>
+    <div class="avatar-row">
+      <button id="avatarBtn" class="avatar" type="button" aria-label="Change avatar"></button>
+      <div class="who">
+        <input id="pilotName" class="field" type="text" maxlength="16" autocomplete="off" placeholder="Pilot name">
+        <div id="pilotRank" class="rank"></div>
+      </div>
+    </div>
+    <div id="avatarPick" class="avatars hidden"></div>
+    <div class="stats">
+      <div class="stat"><b id="stGames">0</b><span>Games</span></div>
+      <div class="stat"><b id="stBest">0</b><span>Best score</span></div>
+      <div class="stat"><b id="stKills">0</b><span>Kills</span></div>
+      <div class="stat"><b id="stBosses">0</b><span>Bosses</span></div>
+      <div class="stat"><b id="stTime">0m</b><span>Time flown</span></div>
+      <div class="stat"><b id="stPlanes">0</b><span>Planes</span></div>
+    </div>
+    <button id="profileBackBtn" class="btn red small">Back</button>
+  </div>
+</div>
+
+<div id="shopScreen" class="overlay hidden">
+  <div class="panel wide">
+    <div class="tab">Shop</div>
+    <p class="hint">Upgrades are saved on this device.</p>
+    <div id="shopList"></div>
+    <button id="shopBackBtn" class="btn red small">Back</button>
+  </div>
+</div>
+
+<div id="historyScreen" class="overlay hidden">
+  <div class="panel wide">
     <div class="tab">History</div>
     <p id="historyBest" class="big"></p>
     <div id="historyList"></div>
@@ -376,8 +732,13 @@
 <div id="planeScreen" class="overlay hidden">
   <div class="panel wide">
     <div class="tab">Choose Plane</div>
-    <p class="hint">Defeat bosses to unlock more planes.</p>
+    <p class="hint">Defeat bosses to unlock more planes. PRO planes come with their own perks.</p>
     <div id="planeList"></div>
+    <button id="hangarBtn" class="offer hidden" type="button">
+      <span class="ic">&#x2708;&#xFE0F;</span>
+      <span class="txt">Unlock all standard planes<span id="hangarSub" class="sub"></span></span>
+      <span id="hangarPrice" class="pill"></span>
+    </button>
     <button id="startBtn" class="btn green">Start</button>
     <button id="backBtn" class="btn red small">Back</button>
   </div>
@@ -398,9 +759,58 @@
     <p id="finalStats"></p>
     <p id="finalBest"></p>
     <p id="finalUnlock" class="good hidden"></p>
+    <button id="continueBtn" class="btn yellow">Continue</button>
     <button id="retryBtn" class="btn green">Retry</button>
-    <button id="changePlaneBtn" class="btn yellow">Change Plane</button>
+    <button id="changePlaneBtn" class="btn blue">Change Plane</button>
     <button id="overMenuBtn" class="btn red">Main Menu</button>
+  </div>
+</div>
+
+<!-- Demo checkout: phone number, then a one-time code. No real money moves. -->
+<div id="payModal" class="overlay modal hidden">
+  <div class="panel">
+    <div class="tab">Checkout</div>
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="summary"><span id="payItem"></span><span id="payPrice" class="price"></span></div>
+
+    <div id="payPhoneStep" class="step">
+      <p class="hint">Enter the mobile wallet number to pay from. A one-time code will be sent to it.</p>
+      <input id="payPhone" class="field" type="tel" inputmode="numeric" autocomplete="tel" maxlength="16" placeholder="Mobile number">
+      <p id="payPhoneError" class="error"></p>
+      <button id="paySendBtn" class="btn green">Send OTP</button>
+      <button class="btn red small pay-cancel">Cancel</button>
+    </div>
+
+    <div id="payOtpStep" class="step hidden">
+      <p class="hint">Enter the 6-digit code sent to <b id="payPhoneShown"></b></p>
+      <div class="sms">📩 Demo SMS &mdash; your code is <b id="payDemoOtp"></b></div>
+      <input id="payOtp" class="field otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="------">
+      <p id="payOtpError" class="error"></p>
+      <button id="payConfirmBtn" class="btn green">Pay</button>
+      <button id="payChangeBtn" class="link" type="button">Change number</button>
+      <button class="btn red small pay-cancel">Cancel</button>
+    </div>
+
+    <div id="payBusyStep" class="step hidden">
+      <div class="spinner"></div>
+      <p id="payBusyText" class="hint">Contacting your wallet&hellip;</p>
+    </div>
+
+    <div id="payDoneStep" class="step hidden">
+      <div class="check">✅</div>
+      <p class="big good">Payment successful</p>
+      <p id="payDoneText" class="hint"></p>
+      <p id="payReceipt" class="receipt"></p>
+      <button id="payDoneBtn" class="btn green">Done</button>
+    </div>
+
+    <div id="payFailStep" class="step hidden">
+      <div class="check">⚠️</div>
+      <p class="big">Payment failed</p>
+      <p id="payFailText" class="hint"></p>
+      <button id="payRetryBtn" class="btn green">Try again</button>
+      <button class="btn red small pay-cancel">Close</button>
+    </div>
   </div>
 </div>
 
@@ -510,13 +920,29 @@ const SPR = { bgs: [] };
 const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png'];
 const BG_FADE_TIME = 2.5; // seconds for a background cross-fade
 const BG_SWITCH_EVERY = 1; // bosses defeated per background change
-// Plane i unlocks once the player has defeated i bosses; the first is always available.
+// Standard plane i unlocks once the player has defeated i bosses; the first is always available.
+// PRO planes are bought in the shop. Each is one of the standard sprites recoloured, with a perk:
+//   hp     - max health multiplier
+//   fire   - rate of fire multiplier
+//   resist - fraction of every hit that is shrugged off
+//   magnet - pick-ups within this many px (scaled) drift toward the plane
+//   score  - score multiplier
 const PLANES = [
   { file: './my-plane.png', name: 'Falcon' },
   { file: './my-plane-1.png', name: 'Raptor' },
   { file: './my-plane-2.png', name: 'Hornet' },
-  { file: './my-plane-3.png', name: 'Phantom' }
+  { file: './my-plane-3.png', name: 'Phantom' },
+  { name: 'Titan',   base: 3, tint: '#ffb300', alpha: 0.45, item: 'plane_titan',   price: 149,
+    perks: { hp: 1.25 },                   perk: '+25% health' },
+  { name: 'Striker', base: 1, tint: '#ff2d2d', alpha: 0.45, item: 'plane_striker', price: 149,
+    perks: { fire: 1.15 },                 perk: '+15% rate of fire' },
+  { name: 'Aegis',   base: 2, tint: '#2ee6ff', alpha: 0.45, item: 'plane_aegis',   price: 199,
+    perks: { resist: 0.15 },               perk: '15% less damage from every hit' },
+  { name: 'Wraith',  base: 0, tint: '#7b3fe4', alpha: 0.5,  item: 'plane_wraith',  price: 179,
+    perks: { magnet: 170, score: 1.05 },   perk: 'Pulls in pick-ups · +5% score' }
 ];
+for (const p of PLANES) if (p.base !== undefined) p.file = PLANES[p.base].file;
+const FREE_PLANES = PLANES.filter(p => !p.item).length;
 // Every image and sound registers here, and the loading bar fills as they settle.
 // The main menu only appears once all of them are in, so nothing stalls mid-game.
 let totalAssets = 0, loadedAssets = 0, loadingDone = false;
@@ -710,10 +1136,17 @@ function loadAssets() {
   SPR.bolt_yellow = makeBolt('#ffd60a');
   SPR.bolt_cyan = makeBolt('#32e0ff');
 
-  PLANES.forEach((p, i) => loadImage(p.file, img => {
-    addSprite('plane' + i, scaled(img, 220), true);
-    if (i === selectedPlane) applyPlane();
-  }));
+  PLANES.forEach((p, i) => {
+    if (p.base !== undefined) return; // built from its base sprite below
+    loadImage(p.file, img => {
+      const spr = scaled(img, 220);
+      addSprite('plane' + i, spr, true);
+      PLANES.forEach((q, j) => {
+        if (q.base === i) addSprite('plane' + j, tinted(spr, q.tint, q.alpha), true);
+      });
+      if (selectedPlane === i || PLANES[selectedPlane].base === i) applyPlane();
+    });
+  });
   loadImage('./enemy-plane-1.png', img => {
     addSprite('enemy1', scaled(img, 180), true);
     addTint('kamikaze', 'enemy1', '#ff1f1f', 0.45);
@@ -862,6 +1295,165 @@ function syncAudioUi() {
   musicToggle.querySelector('.state').textContent = musicOn ? 'ON' : 'OFF';
 }
 
+// ---------- Shop and purchases ----------
+// What the shop sells. Prices are only shown here; the server's catalog
+// (lib/payments.ts) is the one that counts, and the two must agree.
+const CURRENCY = '৳'; // ৳
+// Items with a 'stock' are consumables: each purchase adds 'amount' uses to that wallet counter.
+const SHOP = [
+  { id: 'hangar',  icon: '✈️', name: 'Full Hangar',   price: 99, desc: 'Unlock all four standard planes right now, no bosses required.' },
+  { id: 'armor',   icon: '🛡️', name: 'Armor Plating', price: 49, desc: 'Three runs with +2 max health. One is used each time you start.', stock: 'armor', amount: 3, unit: 'run' },
+  { id: 'revive3', icon: '💖', name: 'Revive Pack',   price: 99, desc: 'Three revives. Continue a run after you crash, keeping your score and level.', stock: 'revives', amount: 3, unit: 'revive' }
+];
+const REVIVE_PACK = SHOP[2];
+const ARMOR_BONUS = 2;
+// PRO planes are shop items too, so they can be bought from the shop or the plane picker.
+PLANES.forEach((p, i) => {
+  if (p.item) SHOP.push({ id: p.item, plane: i, name: p.name, price: p.price, desc: p.perk });
+});
+const shopItem = id => SHOP.find(i => i.id === id);
+
+// wallet = { hangar: true, armor: 2, revives: 2, receipts: [...] }
+function readWallet() {
+  let w = {};
+  try {
+    const parsed = JSON.parse(readStore('planeCrashWallet', '{}'));
+    if (parsed && typeof parsed === 'object') w = parsed;
+  } catch (err) { /* corrupt save: start empty */ }
+  w.revives = Math.max(0, parseInt(w.revives, 10) || 0);
+  w.armor = w.armor === true ? 3 : Math.max(0, parseInt(w.armor, 10) || 0); // armor used to be a one-off
+  w.receipts = Array.isArray(w.receipts) ? w.receipts : [];
+  return w;
+}
+const wallet = readWallet();
+
+function saveWallet() { writeStore('planeCrashWallet', JSON.stringify(wallet)); }
+function owns(id) { return wallet[id] === true; }
+function priceOf(item) { return CURRENCY + item.price; }
+
+// A confirmed purchase lands here, whatever it was bought from.
+function grant(id, receipt) {
+  const item = SHOP.find(i => i.id === id);
+  if (!item) return;
+  if (item.stock) wallet[item.stock] += item.amount;
+  else wallet[id] = true;
+  if (receipt) wallet.receipts = wallet.receipts.concat(receipt).slice(-20);
+  saveWallet();
+  if (id === 'hangar') unlockAllPlanes();
+  refreshShopUi();
+  if (!planeScreen.classList.contains('hidden')) renderPlanePicker();
+  syncProfileUi();
+}
+
+function unlockAllPlanes() {
+  unlockedPlanes = FREE_PLANES;
+  writeStore('planeCrashUnlocked', String(unlockedPlanes));
+}
+
+// Standard planes are earned (or come with Full Hangar); PRO planes are bought one by one.
+function planeAvailable(i) {
+  const p = PLANES[i];
+  return p ? (p.item ? owns(p.item) : i < unlockedPlanes) : false;
+}
+
+function ownedPlaneCount() {
+  let n = 0;
+  for (let i = 0; i < PLANES.length; i++) if (planeAvailable(i)) n++;
+  return n;
+}
+
+// ---------- Pilot profile ----------
+const AVATARS = ['🧑‍✈️', '👩‍✈️', '👨‍✈️', '🦅', '🐉', '🦊', '🐯', '🤖', '👽', '🦈', '🐺', '⭐'];
+// Ranks are earned by bosses destroyed over all games.
+const RANKS = [[0, 'Cadet'], [3, 'Pilot'], [10, 'Veteran'], [25, 'Ace'], [60, 'Commander'], [120, 'Legend']];
+
+function readProfile() {
+  let p = {};
+  try {
+    const parsed = JSON.parse(readStore('planeCrashProfile', '{}'));
+    if (parsed && typeof parsed === 'object') p = parsed;
+  } catch (err) { /* corrupt save: start fresh */ }
+  const num = v => Math.max(0, parseInt(v, 10) || 0);
+  return {
+    name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 16) : 'Pilot',
+    avatar: AVATARS.includes(p.avatar) ? p.avatar : AVATARS[0],
+    games: num(p.games), kills: num(p.kills), bosses: num(p.bosses), time: num(p.time),
+    since: num(p.since) || Date.now()
+  };
+}
+const profile = readProfile();
+function saveProfile() { writeStore('planeCrashProfile', JSON.stringify(profile)); }
+
+function rankFor(bosses) {
+  let rank = RANKS[0], next = null;
+  for (const r of RANKS) {
+    if (bosses >= r[0]) rank = r;
+    else { next = r; break; }
+  }
+  return { name: rank[1], next: next ? { name: next[1], need: next[0] - bosses } : null };
+}
+
+function formatHours(seconds) {
+  if (seconds < 60) return seconds + 's';
+  const m = Math.round(seconds / 60);
+  return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+
+// Lifetime stats. A revived run reports again at its next game over, so only the
+// part not yet counted is added each time.
+let runCounted = false, countedKills = 0, countedBosses = 0, countedTime = 0;
+function recordRun() {
+  if (!runCounted) { profile.games++; runCounted = true; }
+  profile.kills += kills - countedKills; countedKills = kills;
+  profile.bosses += bossesDefeated - countedBosses; countedBosses = bossesDefeated;
+  const t = Math.round(elapsed);
+  profile.time += t - countedTime; countedTime = t;
+  saveProfile();
+  syncProfileUi();
+}
+
+function syncProfileUi() {
+  const rank = rankFor(profile.bosses);
+  chipAvatar.textContent = profile.avatar;
+  chipName.textContent = profile.name;
+  chipRank.textContent = rank.name;
+  avatarBtn.textContent = profile.avatar;
+  if (document.activeElement !== pilotName) pilotName.value = profile.name;
+  pilotRank.innerHTML = '';
+  pilotRank.append(rank.name);
+  if (rank.next) {
+    const small = document.createElement('small');
+    small.textContent = ' · ' + rank.next.need + ' more boss' + (rank.next.need === 1 ? '' : 'es') + ' to ' + rank.next.name;
+    pilotRank.appendChild(small);
+  }
+  $('stGames').textContent = profile.games;
+  $('stBest').textContent = best;
+  $('stKills').textContent = profile.kills;
+  $('stBosses').textContent = profile.bosses;
+  $('stTime').textContent = formatHours(profile.time);
+  $('stPlanes').textContent = ownedPlaneCount() + '/' + PLANES.length;
+  for (const b of avatarPick.children) b.classList.toggle('on', b.textContent === profile.avatar);
+}
+
+function openProfile() {
+  syncProfileUi();
+  avatarPick.classList.add('hidden');
+  startScreen.classList.add('hidden');
+  profileScreen.classList.remove('hidden');
+}
+
+function closeProfile() {
+  pilotName.blur();
+  profileScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+function setPilotName(raw) {
+  profile.name = raw.trim().slice(0, 16) || 'Pilot';
+  saveProfile();
+  syncProfileUi();
+}
+
 // ---------- Game state ----------
 let state = 'menu'; // menu | playing | paused | dying | over
 let player = null;
@@ -870,9 +1462,12 @@ let explosions = [], particles = [], texts = [];
 let boss = null, bossIndex = 0, bossTimer = 0, warning = null;
 let score = 0, kills = 0, bossesDefeated = 0;
 let best = parseInt(readStore('planeCrashBest', '0'), 10) || 0;
-let unlockedPlanes = clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, PLANES.length);
-let selectedPlane = clamp(parseInt(readStore('planeCrashPlane', '0'), 10) || 0, 0, unlockedPlanes - 1);
+let unlockedPlanes = owns('hangar') ? FREE_PLANES
+  : clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, FREE_PLANES);
+let selectedPlane = parseInt(readStore('planeCrashPlane', '0'), 10) || 0;
+if (!planeAvailable(selectedPlane)) selectedPlane = 0;
 let unlockedThisRun = null; // name of a plane unlocked during the current run, for the game-over screen
+let bestAtStart = 0;        // the best score before this run, so a revived run still counts as a new best
 let elapsed = 0;      // seconds survived, drives the difficulty
 let clock = 0;        // animation clock
 let D = difficulty(0);
@@ -888,11 +1483,20 @@ function resetGame() {
   applyPlane();
   const size = 88 * S;
   const ps = playerSize();
+  // Armor Plating is spent one run at a time.
+  const armored = wallet.armor > 0;
+  if (armored) {
+    wallet.armor--;
+    saveWallet();
+  }
+  const baseHp = Math.round(5 * (perk('hp') || 1));
+  const hp = Math.round((5 + (armored ? ARMOR_BONUS : 0)) * (perk('hp') || 1));
   player = {
     x: W / 2, y: H - size * 0.9,
     tx: W / 2, ty: H - size * 0.9, // where the controls want the plane to be
     w: ps.w, h: ps.h,
-    hp: 5, maxHp: 5,
+    hp, maxHp: hp,
+    baseHp, // health above this is Armor Plating, drawn in blue on the HUD
     alive: true,
     invuln: 0,
     tilt: 0,
@@ -911,7 +1515,10 @@ function resetGame() {
   bgScroll = 0; shake = 0; hurtFlash = 0;
   bgIndex = 0; bgFade = null;
   unlockedThisRun = null;
+  bestAtStart = best;
+  runCounted = false; countedKills = 0; countedBosses = 0; countedTime = 0;
   banner = null;
+  if (armored) showBanner('ARMOR PLATING', wallet.armor + ' run' + (wallet.armor === 1 ? '' : 's') + ' left', '#3ea6ff', 2);
   drag = null;
   keys.clear();
 }
@@ -955,6 +1562,20 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 const MOVE_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'];
 
 window.addEventListener('keydown', e => {
+  // The checkout form and the shop take the keyboard; the game keys must not fire
+  // while a phone number is being typed.
+  if (!payModal.classList.contains('hidden')) {
+    if (e.code === 'Escape') closeCheckout();
+    return;
+  }
+  if (!shopScreen.classList.contains('hidden')) {
+    if (e.code === 'Escape') closeShop();
+    return;
+  }
+  if (!profileScreen.classList.contains('hidden')) {
+    if (e.code === 'Escape' || (e.code === 'Enter' && e.target === pilotName)) closeProfile();
+    return;
+  }
   if (MOVE_KEYS.includes(e.code)) {
     keys.add(e.code);
     e.preventDefault();
@@ -1016,8 +1637,8 @@ function roman(n) {
 }
 
 function addScore(base) {
-  // later levels are worth a little more
-  score += Math.round(base * (1 + (level - 1) * 0.15) / 5) * 5;
+  // later levels are worth a little more, and the Wraith adds its own bonus
+  score += Math.round(base * (1 + (level - 1) * 0.15) * (perk('score') || 1) / 5) * 5;
 }
 
 // ---------- Effects ----------
@@ -1102,14 +1723,20 @@ function updatePlayer(dt) {
   p.fireTimer -= dt;
   if (p.fireTimer <= 0) {
     firePlayer();
-    p.fireTimer = Math.max(p.fireTimer + FIRE_INTERVAL, 0);
+    p.fireTimer = Math.max(p.fireTimer + FIRE_INTERVAL / (perk('fire') || 1), 0);
   }
+}
+
+// The perk of the plane being flown, if it has one.
+function perk(name) {
+  const perks = PLANES[selectedPlane].perks;
+  return perks ? perks[name] : undefined;
 }
 
 function damagePlayer(amount) {
   const p = player;
   if (!p.alive || p.invuln > 0) return;
-  p.hp -= amount;
+  p.hp -= amount * (1 - (perk('resist') || 0)); // the Aegis shrugs off part of every hit
   p.invuln = 1.1;
   hurtFlash = 1;
   shake = Math.max(shake, 8);
@@ -1583,8 +2210,9 @@ function damageBoss(b, amount) {
     s.dead = true;
     sparks(s.x, s.y, 1, SHOT_COLORS[s.color], 80 * S);
   }
-  score += b.def.score * (b.tier + 1);
-  showBanner(b.name + ' DESTROYED', '+' + b.def.score * (b.tier + 1), '#4cd964', 2.2);
+  const reward = Math.round(b.def.score * (b.tier + 1) * (perk('score') || 1));
+  score += reward;
+  showBanner(b.name + ' DESTROYED', '+' + reward, '#4cd964', 2.2);
 }
 
 function finishBoss(b) {
@@ -1602,9 +2230,10 @@ function finishBoss(b) {
 }
 
 function unlockPlane(index) {
-  if (index >= PLANES.length || index < unlockedPlanes) return;
+  if (index >= FREE_PLANES || index < unlockedPlanes) return;
   unlockedPlanes = index + 1;
   writeStore('planeCrashUnlocked', String(unlockedPlanes));
+  refreshShopUi(); // the offer strip lists what is still locked
   unlockedThisRun = PLANES[index].name;
   showBanner('NEW PLANE UNLOCKED', PLANES[index].name, '#32e0ff', 2.6);
 }
@@ -1715,9 +2344,18 @@ function updateShots(dt) {
 
 function updatePickups(dt) {
   const p = player;
+  const magnet = perk('magnet');
   for (const k of pickups) {
     k.t += dt;
     k.y += 110 * S * dt;
+    if (magnet && p.alive) { // Wraith: pick-ups nearby drift to the plane
+      const dx = p.x - k.x, dy = p.y - k.y, d = Math.hypot(dx, dy);
+      if (d > 1 && d < magnet * S) {
+        const v = Math.min(d, 280 * S * dt);
+        k.x += dx / d * v;
+        k.y += dy / d * v;
+      }
+    }
     if (k.y - k.r > H) {
       k.dead = true;
     } else if (p.alive && hitCircleRect(k.x, k.y, k.r, p.x, p.y, p.w * 0.4, p.h * 0.4)) {
@@ -1730,8 +2368,9 @@ function updatePickups(dt) {
         p.hp = Math.min(p.maxHp, p.hp + 2);
         floatText(p.x, p.y - p.h * 0.6, '+2 HEALTH', '#4cd964');
       } else {
-        score += 50;
-        floatText(p.x, p.y - p.h * 0.6, '+50', '#ffd60a');
+        const bonus = Math.round(50 * (perk('score') || 1));
+        score += bonus;
+        floatText(p.x, p.y - p.h * 0.6, '+' + bonus, '#ffd60a');
       }
       sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : '#4cd964', 200 * S);
     }
@@ -1966,9 +2605,17 @@ function drawHud() {
   roundRectPath(ctx, x - 2, y - 2, bw + 4, bh + 4, 6);
   ctx.fill();
   if (frac > 0) {
-    ctx.fillStyle = frac > 0.5 ? '#4cd964' : frac > 0.25 ? '#ffcc00' : '#ff3b30';
-    roundRectPath(ctx, x, y, bw * frac, bh, 4);
+    // the plane's own health, coloured by how much of it is left
+    const own = clamp(Math.min(p.hp, p.baseHp) / p.baseHp, 0, 1);
+    ctx.fillStyle = own > 0.5 ? '#4cd964' : own > 0.25 ? '#ffcc00' : '#ff3b30';
+    roundRectPath(ctx, x, y, bw * own * p.baseHp / p.maxHp, bh, 4);
     ctx.fill();
+    if (p.hp > p.baseHp) { // Armor Plating on top, in sky blue
+      const from = bw * p.baseHp / p.maxHp;
+      ctx.fillStyle = '#5ac8fa';
+      roundRectPath(ctx, x + from - 2, y, bw * frac - from + 2, bh, 4);
+      ctx.fill();
+    }
   }
   ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
   for (let i = 1; i < p.maxHp; i++) ctx.fillRect(x + bw * i / p.maxHp - 1, y, 2, bh);
@@ -2102,31 +2749,72 @@ function startLoop() {
 
 let pickerReturn = null; // the overlay to go back to when the plane picker closes
 
+// A small picture of plane i, drawn from its real (possibly recoloured) sprite.
+function planeThumb(i) {
+  const spr = SPR['plane' + i];
+  if (!spr) { // not loaded yet: fall back to the file
+    const img = document.createElement('img');
+    img.src = PLANES[i].file;
+    img.alt = '';
+    return img;
+  }
+  const size = 144;
+  const c = makeCanvas(size, size);
+  const k = Math.min(size / spr.width, size / spr.height);
+  const w = spr.width * k, h = spr.height * k;
+  c.getContext('2d').drawImage(spr, (size - w) / 2, (size - h) / 2, w, h);
+  return c;
+}
+
+function selectPlane(i) {
+  if (!planeAvailable(i)) return;
+  selectedPlane = i;
+  writeStore('planeCrashPlane', String(i));
+  applyPlane();
+  renderPlanePicker();
+}
+
 function renderPlanePicker() {
   planeList.innerHTML = '';
   PLANES.forEach((p, i) => {
-    const locked = i >= unlockedPlanes;
+    const available = planeAvailable(i);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'plane' + (locked ? ' locked' : '') + (i === selectedPlane ? ' selected' : '');
-    const img = document.createElement('img');
-    img.src = p.file;
-    img.alt = '';
+    card.className = 'plane' + (p.item ? ' premium' : '') + (available ? '' : ' locked') + (i === selectedPlane ? ' selected' : '');
+    if (p.item) {
+      const ribbon = document.createElement('span');
+      ribbon.className = 'ribbon';
+      ribbon.textContent = 'PRO';
+      card.appendChild(ribbon);
+    }
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = p.name;
+    card.append(planeThumb(i), name);
+    if (p.perk) {
+      const perkEl = document.createElement('span');
+      perkEl.className = 'perk';
+      perkEl.textContent = p.perk;
+      card.appendChild(perkEl);
+    }
     const status = document.createElement('span');
-    status.className = 'status';
-    status.textContent = locked ? '\uD83D\uDD12 Defeat boss ' + i : (i === selectedPlane ? 'Selected' : 'Unlocked');
-    card.append(img, name, status);
-    if (locked) {
-      card.disabled = true;
+    if (available) {
+      status.className = 'status';
+      status.textContent = i === selectedPlane ? 'Selected' : (p.item ? 'Owned' : 'Unlocked');
+    } else if (p.item) {
+      status.className = 'buy';
+      status.textContent = 'Buy ' + priceOf(p);
     } else {
-      card.addEventListener('click', () => {
-        selectedPlane = i;
-        writeStore('planeCrashPlane', String(i));
-        renderPlanePicker();
-      });
+      status.className = 'status';
+      status.textContent = '\uD83D\uDD12 Defeat boss ' + i;
+    }
+    card.appendChild(status);
+    if (available) {
+      card.addEventListener('click', () => selectPlane(i));
+    } else if (p.item) {
+      card.addEventListener('click', () => startCheckout(shopItem(p.item), () => selectPlane(i), 'Fly it'));
+    } else {
+      card.disabled = true;
     }
     planeList.appendChild(card);
   });
@@ -2196,6 +2884,13 @@ function addHistory(run) {
   writeStore('planeCrashHistory', JSON.stringify(h));
 }
 
+// A revived run is not over yet: drop the entry gameOver() just wrote.
+function popHistory() {
+  const h = readHistory();
+  h.shift();
+  writeStore('planeCrashHistory', JSON.stringify(h));
+}
+
 function formatDate(t) {
   const d = new Date(t);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' +
@@ -2216,14 +2911,13 @@ function renderHistory() {
   }
   let topShown = false;
   for (const r of h) {
-    const plane = PLANES[r.plane] || PLANES[0];
+    const planeIndex = PLANES[r.plane] ? r.plane : 0;
+    const plane = PLANES[planeIndex];
     const row = document.createElement('div');
     const isTop = !topShown && r.score === top && top > 0;
     if (isTop) topShown = true;
     row.className = 'run' + (isTop ? ' top' : '');
-    const img = document.createElement('img');
-    img.src = plane.file;
-    img.alt = '';
+    const img = planeThumb(planeIndex);
     const info = document.createElement('div');
     info.className = 'info';
     const name = document.createElement('div');
@@ -2272,6 +2966,8 @@ function exitGame() {
 // Abandon the current run and go back to the start screen.
 function exitToMenu() {
   if (state !== 'paused' && state !== 'over') return;
+  // Quitting mid-run still counts: the score so far goes on the record.
+  if (state === 'paused' && player) saveRun();
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   state = 'menu';
@@ -2288,23 +2984,274 @@ function exitToMenu() {
   renderIdle();
 }
 
-function gameOver() {
-  state = 'over';
-  music.pause();
-  const isBest = score > best;
-  if (isBest) {
+// Writes the run into the best score, the history and the pilot profile. Used when
+// the plane goes down and when the player quits a run from the pause menu.
+function saveRun() {
+  const isBest = score > bestAtStart;
+  if (score > best) {
     best = score;
     writeStore('planeCrashBest', String(best));
   }
+  addHistory({ t: Date.now(), plane: selectedPlane, score, time: Math.round(elapsed), level, bosses: bossesDefeated });
+  recordRun();
+  return isBest;
+}
+
+function gameOver() {
+  state = 'over';
+  music.pause();
+  const isBest = saveRun();
   finalScoreEl.textContent = 'Your Score: ' + score;
   finalStatsEl.textContent = 'Survived ' + formatTime(elapsed) + '  ·  Level ' + level +
     '  ·  Bosses destroyed: ' + bossesDefeated;
   finalBestEl.textContent = isBest && score > 0 ? 'New best score!' : 'Best: ' + best;
-  addHistory({ t: Date.now(), plane: selectedPlane, score, time: Math.round(elapsed), level, bosses: bossesDefeated });
   finalUnlockEl.textContent = unlockedThisRun ? 'New plane unlocked: ' + unlockedThisRun : '';
   finalUnlockEl.classList.toggle('hidden', !unlockedThisRun);
+  refreshShopUi();
   hud.classList.add('hidden');
   overScreen.classList.remove('hidden');
+}
+
+// Spend a revive: the run carries on from where it ended, with full health, a
+// short shield and a clear screen. Score, level, time and the boss all stay.
+function revivePlayer() {
+  if (state !== 'over' || !player || wallet.revives <= 0) return;
+  wallet.revives--;
+  saveWallet();
+  popHistory();
+  const p = player;
+  p.alive = true;
+  p.hp = p.maxHp;
+  p.invuln = 3;
+  p.x = p.tx = W / 2;
+  p.y = p.ty = H - p.h * 0.9;
+  p.tilt = 0;
+  p.fireTimer = 0.3;
+  p.weapon = Math.max(p.weapon, 2);
+  p.weaponTimer = WEAPON_TIME;
+  for (const s of shots) s.dead = true;
+  for (const e of enemies) if (e.kind === 'kamikaze') e.dead = true;
+  hurtFlash = 0; shake = 0; deathTimer = 0;
+  drag = null;
+  keys.clear();
+  showBanner('REVIVED', wallet.revives + ' revive' + (wallet.revives === 1 ? '' : 's') + ' left', '#ff6fa8', 2);
+  overScreen.classList.add('hidden');
+  hud.classList.remove('hidden');
+  state = 'playing';
+  playMusic();
+  startLoop();
+}
+
+// ---------- Shop ----------
+function openShop() {
+  renderShop();
+  startScreen.classList.add('hidden');
+  shopScreen.classList.remove('hidden');
+}
+
+function closeShop() {
+  shopScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+function renderShop() {
+  shopList.innerHTML = '';
+  let section = null;
+  for (const item of SHOP) {
+    const kind = item.plane === undefined ? 'Upgrades' : 'PRO planes';
+    if (kind !== section) {
+      section = kind;
+      const head = document.createElement('div');
+      head.className = 'shop-head';
+      head.textContent = kind;
+      shopList.appendChild(head);
+    }
+    const owned = !item.stock && owns(item.id);
+    const card = document.createElement('div');
+    card.className = 'item' + (owned ? ' owned' : '');
+    const icon = document.createElement('div');
+    icon.className = 'icon';
+    if (item.plane === undefined) icon.textContent = item.icon;
+    else icon.appendChild(planeThumb(item.plane));
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = item.name;
+    const desc = document.createElement('div');
+    desc.className = 'desc';
+    desc.textContent = item.desc;
+    card.append(icon, name, desc);
+    if (item.stock && wallet[item.stock] > 0) {
+      const n = wallet[item.stock];
+      const have = document.createElement('div');
+      have.className = 'have';
+      have.textContent = n + ' ' + item.unit + (n === 1 ? '' : 's') + ' left';
+      card.appendChild(have);
+    }
+    if (owned) {
+      const tag = document.createElement('div');
+      tag.className = 'owned-tag';
+      tag.textContent = '✓ Owned';
+      card.appendChild(tag);
+    } else {
+      // one button does it all: the price is the label
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn green';
+      btn.textContent = 'Buy ' + priceOf(item);
+      btn.addEventListener('click', () => startCheckout(item));
+      card.appendChild(btn);
+    }
+    shopList.appendChild(card);
+  }
+}
+
+// Every button that reflects what the player owns.
+function refreshShopUi() {
+  if (!shopScreen.classList.contains('hidden')) renderShop();
+  hangarBtn.classList.toggle('hidden', owns('hangar') || unlockedPlanes >= FREE_PLANES);
+  const locked = PLANES.slice(unlockedPlanes, FREE_PLANES).map(p => p.name);
+  if (locked.length) {
+    const names = locked.length > 1 ? locked.slice(0, -1).join(', ') + ' and ' + locked[locked.length - 1] : locked[0];
+    hangarSub.textContent = names + ' · no bosses needed';
+  }
+  hangarPrice.textContent = 'Buy ' + priceOf(SHOP[0]);
+  continueBtn.textContent = wallet.revives > 0
+    ? 'Continue (' + wallet.revives + ' left)'
+    : 'Continue · ' + priceOf(REVIVE_PACK);
+  continueBtn.title = wallet.revives > 0
+    ? wallet.revives + ' revive' + (wallet.revives === 1 ? '' : 's') + ' left'
+    : 'Buy a revive pack to continue this run';
+}
+
+// ---------- Checkout (demo) ----------
+// Phone number -> one-time code -> receipt, against /api/payment. Nothing is
+// charged; the server hands the code back so it can be shown on screen.
+const PAY_ERRORS = {
+  unknown_item: 'That item is not for sale.',
+  bad_phone: 'That mobile number was not accepted.',
+  invalid: 'The payment request was not accepted. Please start again.',
+  expired: 'The code expired. Please start again.',
+  too_many: 'Too many wrong codes. Please start again.'
+};
+const PAY_STEPS = ['Phone', 'Otp', 'Busy', 'Done', 'Fail'];
+let checkout = null; // { item, phone, token, onDone, doneLabel } while the popup is open
+
+function startCheckout(item, onDone, doneLabel) {
+  checkout = { item, phone: '', token: null, onDone: onDone || null, doneLabel: doneLabel || 'Done' };
+  payItemEl.innerHTML = '';
+  if (item.plane === undefined) {
+    payItemEl.append(item.icon + ' ' + item.name);
+  } else { // a plane: show the plane itself
+    payItemEl.append(planeThumb(item.plane), item.name);
+  }
+  payPriceEl.textContent = priceOf(item);
+  payPhone.value = '';
+  payOtp.value = '';
+  showPayStep('Phone');
+  payModal.classList.remove('hidden');
+  setTimeout(() => payPhone.focus(), 50);
+}
+
+function showPayStep(name) {
+  for (const s of PAY_STEPS) $('pay' + s + 'Step').classList.toggle('hidden', s !== name);
+  const lit = name === 'Phone' ? 1 : name === 'Otp' || name === 'Busy' ? 2 : 3;
+  payDots.forEach((d, i) => d.classList.toggle('on', i < lit));
+  payPhoneError.textContent = '';
+  payOtpError.textContent = '';
+}
+
+function closeCheckout() {
+  payModal.classList.add('hidden');
+  checkout = null;
+}
+
+function failCheckout(message) {
+  payFailText.textContent = message;
+  showPayStep('Fail');
+}
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function payApi(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store'
+  });
+  let data = null;
+  try { data = await res.json(); } catch (err) { /* not JSON */ }
+  if (!data || typeof data !== 'object') throw new Error('The payment service is not responding (' + res.status + ').');
+  return data;
+}
+
+async function sendOtp() {
+  const mine = checkout;
+  if (!mine) return;
+  const phone = payPhone.value.replace(/[\s\-().]/g, '');
+  if (!/^\+?\d{10,15}$/.test(phone)) {
+    payPhoneError.textContent = 'Enter a valid mobile number.';
+    payPhone.focus();
+    return;
+  }
+  mine.phone = phone;
+  payBusyText.textContent = 'Sending a code to ' + phone + '…';
+  showPayStep('Busy');
+  try {
+    const [data] = await Promise.all([payApi('/api/payment/start', { item: mine.item.id, phone }), wait(900)]);
+    if (checkout !== mine) return; // cancelled, or a new checkout started meanwhile
+    if (!data.ok) throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
+    mine.token = data.token;
+    payPhoneShown.textContent = phone;
+    payDemoOtp.textContent = data.demoOtp;
+    payConfirmBtn.textContent = 'Pay ' + priceOf(mine.item);
+    payOtp.value = '';
+    showPayStep('Otp');
+    payOtp.focus();
+  } catch (err) {
+    if (checkout === mine) failCheckout(err.message);
+  }
+}
+
+async function confirmOtp() {
+  const mine = checkout;
+  if (!mine || !mine.token) return;
+  const otp = payOtp.value.trim();
+  if (!/^\d{6}$/.test(otp)) {
+    payOtpError.textContent = 'Enter the 6-digit code.';
+    payOtp.focus();
+    return;
+  }
+  payBusyText.textContent = 'Confirming payment…';
+  showPayStep('Busy');
+  try {
+    const [data] = await Promise.all([payApi('/api/payment/confirm', { token: mine.token, otp }), wait(1200)]);
+    if (checkout !== mine) return;
+    if (!data.ok) {
+      if (data.error === 'wrong_otp' && data.token) {
+        mine.token = data.token;
+        showPayStep('Otp');
+        payOtpError.textContent = 'Wrong code. ' + data.triesLeft + ' attempt' + (data.triesLeft === 1 ? '' : 's') + ' left.';
+        payOtp.value = '';
+        payOtp.focus();
+        return;
+      }
+      throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
+    }
+    grant(data.item, data.receipt);
+    payDoneText.textContent = mine.item.name + ' is now yours.';
+    payReceipt.textContent = 'Transaction ' + data.txn + ' · ' + priceOf(mine.item) + ' from ' + mine.phone;
+    payDoneBtn.textContent = mine.doneLabel;
+    showPayStep('Done');
+  } catch (err) {
+    if (checkout === mine) failCheckout(err.message);
+  }
+}
+
+function finishCheckout() {
+  const done = checkout && checkout.onDone;
+  closeCheckout();
+  if (done) done();
 }
 
 // ---------- UI wiring ----------
@@ -2325,6 +3272,74 @@ const muteBtn = $('muteBtn');
 const finalScoreEl = $('finalScore');
 const finalStatsEl = $('finalStats');
 const finalBestEl = $('finalBest');
+const shopScreen = $('shopScreen');
+const shopList = $('shopList');
+const hangarBtn = $('hangarBtn');
+const hangarSub = $('hangarSub');
+const hangarPrice = $('hangarPrice');
+const continueBtn = $('continueBtn');
+const payModal = $('payModal');
+const payDots = Array.from(payModal.querySelectorAll('.dots span'));
+const payItemEl = $('payItem');
+const payPriceEl = $('payPrice');
+const payPhone = $('payPhone');
+const payPhoneError = $('payPhoneError');
+const payPhoneShown = $('payPhoneShown');
+const payDemoOtp = $('payDemoOtp');
+const payOtp = $('payOtp');
+const payOtpError = $('payOtpError');
+const payConfirmBtn = $('payConfirmBtn');
+const payBusyText = $('payBusyText');
+const payDoneText = $('payDoneText');
+const payReceipt = $('payReceipt');
+const payDoneBtn = $('payDoneBtn');
+const payFailText = $('payFailText');
+const profileScreen = $('profileScreen');
+const chipAvatar = $('chipAvatar');
+const chipName = $('chipName');
+const chipRank = $('chipRank');
+const avatarBtn = $('avatarBtn');
+const avatarPick = $('avatarPick');
+const pilotName = $('pilotName');
+const pilotRank = $('pilotRank');
+
+// pilot profile
+for (const a of AVATARS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = a;
+  b.addEventListener('click', () => {
+    profile.avatar = a;
+    saveProfile();
+    syncProfileUi();
+    avatarPick.classList.add('hidden');
+  });
+  avatarPick.appendChild(b);
+}
+$('profileBtn').addEventListener('click', openProfile);
+$('profileBackBtn').addEventListener('click', closeProfile);
+avatarBtn.addEventListener('click', () => avatarPick.classList.toggle('hidden'));
+pilotName.addEventListener('input', () => setPilotName(pilotName.value));
+pilotName.addEventListener('blur', () => { pilotName.value = profile.name; });
+
+// shop and checkout
+$('shopBtn').addEventListener('click', openShop);
+$('shopBackBtn').addEventListener('click', closeShop);
+hangarBtn.addEventListener('click', () => startCheckout(SHOP[0]));
+continueBtn.addEventListener('click', () => {
+  if (wallet.revives > 0) revivePlayer();
+  else startCheckout(REVIVE_PACK, revivePlayer, 'Continue run');
+});
+$('paySendBtn').addEventListener('click', sendOtp);
+payConfirmBtn.addEventListener('click', confirmOtp);
+$('payChangeBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
+payDoneBtn.addEventListener('click', finishCheckout);
+$('payRetryBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
+for (const b of payModal.querySelectorAll('.pay-cancel')) b.addEventListener('click', closeCheckout);
+payPhone.addEventListener('keydown', e => { if (e.key === 'Enter') sendOtp(); });
+payOtp.addEventListener('keydown', e => { if (e.key === 'Enter') confirmOtp(); });
+payOtp.addEventListener('input', () => { payOtp.value = payOtp.value.replace(/\D/g, '').slice(0, 6); });
+payPhone.addEventListener('input', () => { payPhone.value = payPhone.value.replace(/[^\d+\s\-()]/g, ''); });
 
 playBtn.addEventListener('click', () => openPlanePicker(startScreen));
 $('startBtn').addEventListener('click', startGame);
@@ -2355,6 +3370,8 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('resize', resizeCanvas);
 
 syncAudioUi();
+refreshShopUi();
+syncProfileUi();
 if (best > 0) $('startBest').textContent = 'Best: ' + best;
 resizeCanvas();
 loadAssets();
