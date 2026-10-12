@@ -829,6 +829,8 @@ const ctx = canvas.getContext('2d');
 // ---------- Tuning ----------
 const FIRE_INTERVAL = 0.22;   // seconds between player shots
 const WEAPON_TIME = 15;       // seconds a weapon upgrade lasts
+const ROCKET_TIME = 10;       // seconds the rocket pods stay armed
+const ROCKET_GAP = 1.3;       // seconds between rockets (they alternate wings)
 const LEVEL_SECONDS = 25;     // the level shown in the HUD goes up this often
 const FIRST_BOSS_AT = 35;     // seconds until the first boss
 const BOSS_GAP = 30;          // seconds between a boss dying and the next one
@@ -861,10 +863,15 @@ const BOSSES = [
 ];
 
 const ENEMY_KINDS = {
-  grunt:    { sprite: 'enemy1',   score: 10 },  // flies straight, shoots straight
-  weaver:   { sprite: 'enemy2',   score: 15 },  // weaves side to side
-  sniper:   { sprite: 'enemy3',   score: 20 },  // aims at the player
-  kamikaze: { sprite: 'kamikaze', score: 15 }   // fast, steers into the player
+  grunt:       { sprite: 'enemy1',   score: 10 },  // flies straight, shoots straight
+  weaver:      { sprite: 'enemy2',   score: 15 },  // weaves side to side
+  sniper:      { sprite: 'enemy3',   score: 20 },  // aims at the player
+  kamikaze:    { sprite: 'kamikaze', score: 15 },  // fast, steers into the player
+  heli:        { sprites: ['heli1', 'heli2'], score: 30 },            // hovers, fires aimed bursts
+  interceptor: { sprites: ['jet1', 'jet2'], score: 25 },              // strafes across the screen
+  bomber:      { sprites: ['bomber'], score: 60 },                    // slow and tough, drops bombs
+  transport:   { sprites: ['transport1', 'transport2'], score: 40 },  // unarmed, carries supplies
+  missile:     { sprites: ['emissile'], score: 5 }                    // homing, launched by bosses
 };
 
 const SHOT_COLORS = {
@@ -872,7 +879,22 @@ const SHOT_COLORS = {
   red: '#ff3b30',
   magenta: '#ff4dff',
   green: '#7dff5a',
-  shell: '#ffe14d'
+  shell: '#ffe14d',
+  bomb: '#ffb020',
+  laser: '#ff3b3b',
+  flame: '#ff9a2e'
+};
+
+// How each shot colour is drawn from the atlas: [sprite, turns with its heading, width as a multiple of r].
+// A colour with no entry (or a sprite that failed to load) falls back to the plain orb of that colour.
+const SHOT_SPRITES = {
+  orange:  ['fireball', true, 2.2],
+  magenta: ['orbPink', false, 2.6],
+  red:     ['orbRed', false, 3.2],
+  shell:   ['bomb', true, 2],
+  bomb:    ['bomb', true, 2],
+  laser:   ['laser', true, 1.6],
+  flame:   ['flame', true, 2]
 };
 
 // ---------- View ----------
@@ -932,6 +954,8 @@ const PLANES = [
   { file: './my-plane-1.png', name: 'Raptor' },
   { file: './my-plane-2.png', name: 'Hornet' },
   { file: './my-plane-3.png', name: 'Phantom' },
+  { atlas: 'fighter',   name: 'Comet' },       // cut from atlas.png, see ATLAS
+  { atlas: 'attackJet', name: 'Thunderbolt' },
   { name: 'Titan',   base: 3, tint: '#ffb300', alpha: 0.45, item: 'plane_titan',   price: 149,
     perks: { hp: 1.25 },                   perk: '+25% health' },
   { name: 'Striker', base: 1, tint: '#ff2d2d', alpha: 0.45, item: 'plane_striker', price: 149,
@@ -1014,6 +1038,42 @@ function mirrored(src) {
   g.scale(-1, 1);
   g.drawImage(src, 0, 0);
   return c;
+}
+
+function flippedV(src) {
+  const c = makeCanvas(src.width, src.height);
+  const g = c.getContext('2d');
+  g.translate(0, c.height);
+  g.scale(1, -1);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+
+// ---------- Sprite atlas ----------
+// atlas.png packs the newer art (planes, helicopters, bullets, effects) into one image, so it costs
+// one request. The frame table comes from assets/atlas.json; the loose PNGs there are the source art.
+const ATLAS = {
+  rotor:       [0, 0, 490, 490],       rotor2:      [494, 0, 490, 490],
+  heli1:       [988, 0, 242, 420],     heli2:       [1234, 0, 200, 404],
+  jet1:        [1438, 0, 204, 366],    jet2:        [1646, 0, 204, 354],
+  biplane:     [0, 494, 414, 338],     bomber:      [418, 494, 530, 336],
+  attackJet:   [952, 494, 428, 330],   transport1:  [1384, 494, 344, 330],
+  transport2:  [0, 836, 420, 320],     fighter:     [424, 836, 408, 318],
+  fireball:    [858, 836, 34, 88],     plasma:      [896, 836, 38, 78],
+  missileGrey: [938, 836, 30, 78],     missileRed:  [972, 836, 32, 78],
+  star:        [1032, 836, 78, 76],    laser:       [1114, 836, 26, 74],
+  crescent:    [1144, 836, 42, 68],    orbGlow:     [1190, 836, 70, 68],
+  rocket:      [1286, 836, 36, 66],    flame:       [1326, 836, 28, 60],
+  bomb:        [1390, 836, 32, 54],    orbPink:     [1426, 836, 42, 52],
+  drop:        [1472, 836, 32, 46],    smoke:       [1508, 836, 42, 40],
+  thrusterA:   [1554, 836, 20, 30],    thrusterB:   [1578, 836, 16, 26]
+};
+
+function cut(img, key, targetW) {
+  const [x, y, w, h] = ATLAS[key];
+  const c = makeCanvas(w, h);
+  c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+  return targetW ? scaled(c, targetW) : c;
 }
 
 function tinted(src, color, alpha) {
@@ -1146,7 +1206,7 @@ function loadAssets() {
   SPR.bolt_cyan = makeBolt('#32e0ff');
 
   PLANES.forEach((p, i) => {
-    if (p.base !== undefined) return; // built from its base sprite below
+    if (p.base !== undefined || p.atlas) return; // built from a base sprite, or cut from the atlas below
     loadImage(p.file, img => {
       const spr = scaled(img, 220);
       addSprite('plane' + i, spr, true);
@@ -1188,6 +1248,28 @@ function loadAssets() {
     SPR.cloud_f = mirrored(SPR.cloud);          // mirrored copy, so two clouds never look the same
     SPR.cloud_s = tinted(SPR.cloud, '#000', 1); // soft shadow a low cloud throws on the ground
     SPR.cloud_fs = mirrored(SPR.cloud_s);
+  });
+  loadImage('./atlas.png', img => {
+    // enemies fly down the screen, so the atlas aircraft (drawn nose-up) are turned over
+    const foe = (key, w) => flippedV(cut(img, key, w));
+    addSprite('heli1', foe('heli1', 150), true);
+    addSprite('heli2', foe('heli2', 130), true);
+    addSprite('jet1', foe('jet1', 120), true);
+    addSprite('jet2', foe('jet2', 120), true);
+    addSprite('bomber', foe('bomber', 320), true);
+    addSprite('transport1', foe('transport1', 220), true);
+    addSprite('transport2', foe('transport2', 240), true);
+    addSprite('emissile', foe('missileRed', 32), true);
+    SPR.rotor = cut(img, 'rotor', 240);
+    SPR.rotor2 = cut(img, 'rotor2', 240);
+    for (const k of ['fireball', 'plasma', 'star', 'laser', 'crescent', 'orbGlow', 'rocket', 'flame',
+                     'bomb', 'orbPink', 'drop', 'smoke', 'thrusterA', 'thrusterB']) SPR[k] = cut(img, k);
+    SPR.orbRed = tinted(SPR.orbGlow, '#ff2020', 0.6);
+    PLANES.forEach((p, i) => {
+      if (!p.atlas) return;
+      addSprite('plane' + i, cut(img, p.atlas, 220), true);
+      if (selectedPlane === i) applyPlane();
+    });
   });
   // Backgrounds cycle every 2nd boss; each is loaded into its slot so the order is stable.
   BG_FILES.forEach((src, i) => loadImage(src, img => {
@@ -1481,7 +1563,12 @@ let score = 0, kills = 0, bossesDefeated = 0;
 let best = parseInt(readStore('planeCrashBest', '0'), 10) || 0;
 let unlockedPlanes = owns('hangar') ? FREE_PLANES
   : clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, FREE_PLANES);
-let selectedPlane = parseInt(readStore('planeCrashPlane', '0'), 10) || 0;
+// Saved by name. Older saves hold an index from when the PRO planes started at 4; they sit two further on now.
+let selectedPlane = PLANES.findIndex(p => p.name === readStore('planeCrashPlaneName', ''));
+if (selectedPlane < 0) {
+  const legacy = parseInt(readStore('planeCrashPlane', '0'), 10) || 0;
+  selectedPlane = legacy >= 4 ? legacy + 2 : legacy;
+}
 if (!planeAvailable(selectedPlane)) selectedPlane = 0;
 let unlockedThisRun = null; // name of a plane unlocked during the current run, for the game-over screen
 let bestAtStart = 0;        // the best score before this run, so a revived run still counts as a new best
@@ -1519,7 +1606,9 @@ function resetGame() {
     invuln: 0,
     tilt: 0,
     fireTimer: 0.3,
-    weapon: 1, weaponTimer: 0
+    weapon: 1, weaponTimer: 0,
+    rockets: 0, rocketTimer: 0, rocketSide: 1, // seconds of rocket pods left, until the next one, which wing
+    smokeT: 0
   };
   bullets = []; enemies = []; tanks = []; shots = []; pickups = [];
   explosions = []; particles = []; texts = [];
@@ -1675,6 +1764,12 @@ function sparks(x, y, count, color, speed) {
   }
 }
 
+// A puff that drifts down the screen, growing and thinning as it goes (drawn with the smoke sprite).
+function smoke(x, y, size, life) {
+  if (particles.length >= MAX_PARTICLES) return;
+  particles.push({ x, y, vx: rand(-14, 14) * S, vy: rand(25, 55) * S, life, max: life, size, color: '#ccc', spr: 'smoke' });
+}
+
 function floatText(x, y, str, color) {
   texts.push({ x, y, str, color, life: 1.1 });
 }
@@ -1684,27 +1779,49 @@ function showBanner(title, sub, color, time) {
 }
 
 // ---------- Player ----------
+// Player shots are blue so they never read as enemy fire: [width, height] in px before scaling.
+const PLAYER_SHOTS = { plasma: [11, 22], crescent: [12, 19], drop: [9, 13], rocket: [13, 24] };
+
 function firePlayer() {
   const p = player;
   const speed = 620 * S;
   const top = p.y - p.h * 0.45;
-  const w = 7 * S, h = 20 * S;
-  const add = (x, angle, color) => bullets.push({
-    x, y: top, w, h, color,
-    vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed,
-    dead: false
-  });
+  const add = (x, angle, key) => {
+    const d = PLAYER_SHOTS[key];
+    bullets.push({
+      x, y: top, w: d[0] * S, h: d[1] * S, key, rot: angle, dmg: 1,
+      vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed,
+      dead: false
+    });
+  };
   if (p.weapon === 1) {
-    add(p.x, 0, 'bolt_yellow');
+    add(p.x, 0, 'plasma');
   } else {
-    add(p.x - p.w * 0.3, 0, 'bolt_cyan');
-    add(p.x + p.w * 0.3, 0, 'bolt_cyan');
+    add(p.x - p.w * 0.3, 0, 'crescent');
+    add(p.x + p.w * 0.3, 0, 'crescent');
     if (p.weapon >= 3) {
-      add(p.x - p.w * 0.12, -0.2, 'bolt_yellow');
-      add(p.x + p.w * 0.12, 0.2, 'bolt_yellow');
+      add(p.x - p.w * 0.12, -0.2, 'drop');
+      add(p.x + p.w * 0.12, 0.2, 'drop');
     }
   }
   playSfx(p.weapon === 1 ? SFX.shoot : SFX.shoot2);
+}
+
+// Rocket pods: one rocket at a time, alternating wings. It leaves slowly, then accelerates and
+// homes in (see steerRocket). A side-arm, not a main gun: it hits for 2 about once a second.
+function fireRockets() {
+  const p = player;
+  const d = PLAYER_SHOTS.rocket;
+  const side = p.rocketSide;
+  p.rocketSide = -side;
+  const a = side * 0.45;
+  bullets.push({
+    x: p.x + side * p.w * 0.38, y: p.y, w: d[0] * S, h: d[1] * S, key: 'rocket', rot: a, dmg: 2,
+    vx: Math.sin(a) * 220 * S, vy: -Math.cos(a) * 220 * S,
+    homing: true, speed: 480 * S, life: 2, puff: 0,
+    dead: false
+  });
+  playSfx(SFX.shoot2);
 }
 
 function updatePlayer(dt) {
@@ -1736,6 +1853,22 @@ function updatePlayer(dt) {
     if (p.weaponTimer <= 0) {
       p.weapon--;
       p.weaponTimer = WEAPON_TIME * 0.6;
+    }
+  }
+
+  if (p.rockets > 0) {
+    p.rockets -= dt;
+    p.rocketTimer -= dt;
+    if (p.rocketTimer <= 0) {
+      fireRockets();
+      p.rocketTimer = ROCKET_GAP / (perk('fire') || 1);
+    }
+  }
+  if (p.hp <= p.maxHp * 0.4) { // a badly damaged plane trails smoke
+    p.smokeT -= dt;
+    if (p.smokeT <= 0) {
+      p.smokeT = 0.07;
+      smoke(p.x + rand(-4, 4) * S, p.y + p.h * 0.35, 9 * S, 0.6);
     }
   }
 
@@ -1778,6 +1911,10 @@ function pickEnemyKind(t) {
   if (t >= 20) pool.push(['weaver', 2 + Math.min(2, t / 90)]);
   if (t >= 45) pool.push(['sniper', 1.5 + Math.min(2.5, t / 100)]);
   if (t >= 70) pool.push(['kamikaze', 1 + Math.min(3, t / 110)]);
+  if (t >= 30) pool.push(['heli', 1.2 + Math.min(1.5, t / 150)]);
+  if (t >= 40) pool.push(['transport', 0.45]);
+  if (t >= 55) pool.push(['interceptor', 1 + Math.min(2, t / 120)]);
+  if (t >= 80) pool.push(['bomber', 0.8 + Math.min(1.2, t / 200)]);
   let total = 0;
   for (const entry of pool) total += entry[1];
   let roll = Math.random() * total;
@@ -1790,18 +1927,46 @@ function pickEnemyKind(t) {
 
 function makeEnemy(kind, x, y, size) {
   const def = ENEMY_KINDS[kind];
+  const sprite = def.sprite || def.sprites[Math.floor(Math.random() * def.sprites.length)];
+  const spr = SPR[sprite];
   const e = {
-    kind, sprite: def.sprite, score: def.score,
-    x, y, w: size, h: size,
+    kind, sprite, score: def.score,
+    x, y, w: size, h: def.sprites && spr ? size * spr.height / spr.width : size, // atlas craft keep their shape
     hp: 1, maxHp: 1,
-    vy: 0, t: 0, flash: 0,
+    vx: 0, vy: 0, t: 0, flash: 0, puff: 0,
     fire: rand(0.5, 1.4),
+    burst: 0, burstCd: 0,
     dead: false
   };
   if (kind === 'kamikaze') {
     e.hp = 1 + Math.floor(D.hpBonus / 2);
     e.vy = 250 * S * (1 + Math.min(elapsed / 600, 0.5));
     e.steer = 130 * S * (1 + Math.min(elapsed / 400, 0.6));
+  } else if (kind === 'heli') {
+    e.hp = 4 + D.hpBonus;
+    e.vy = 170 * S * D.speed;
+    e.hoverY = rand(H * 0.16, H * 0.34);
+    e.hover = rand(5, 7); // seconds it holds position before flying on
+    e.baseX = clamp(x, size, W - size);
+    e.drift = rand(0.8, 1.3);
+    e.rotor = rand(0, TAU);
+    e.fire = rand(0.8, 1.4);
+  } else if (kind === 'interceptor') {
+    e.hp = 2 + D.hpBonus; // vx/vy are set by the spawner, which picks the corner it comes from
+    e.fire = rand(0.3, 0.6);
+  } else if (kind === 'bomber') {
+    e.hp = 9 + D.hpBonus * 2;
+    e.vy = rand(48, 62) * S * D.speed;
+    e.fire = 1.2;
+  } else if (kind === 'transport') {
+    e.hp = 5 + D.hpBonus;
+    e.vy = rand(70, 90) * S * D.speed;
+  } else if (kind === 'missile') {
+    e.hp = 1;
+    e.a = Math.PI / 2; // heading, radians from +x
+    e.speed = 230 * S * (1 + Math.min(elapsed / 500, 0.4));
+    e.turn = 2.4;      // radians per second it can bend toward the player
+    e.life = 5;
   } else {
     e.hp = 1 + Math.floor(Math.random() * 3) + D.hpBonus;
     e.vy = (kind === 'sniper' ? rand(70, 110) : rand(90, 170)) * S * D.speed;
@@ -1818,7 +1983,21 @@ function makeEnemy(kind, x, y, size) {
 
 function spawnEnemy() {
   const kind = pickEnemyKind(elapsed);
-  const size = (kind === 'kamikaze' ? 50 : rand(54, 80)) * S;
+  const size = (kind === 'kamikaze' ? 50 : kind === 'heli' ? 70 : kind === 'interceptor' ? 62 :
+                kind === 'bomber' ? 130 : kind === 'transport' ? 104 : rand(54, 80)) * S;
+
+  if (kind === 'interceptor') { // a strafing run from one top corner to the far side
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const e = makeEnemy(kind, side < 0 ? -size : W + size, rand(size, H * 0.22), size);
+    e.vx = -side * rand(250, 320) * S * D.speed;
+    e.vy = rand(110, 160) * S * D.speed;
+    enemies.push(e);
+    return 1;
+  }
+  if (kind === 'transport') { // hugs an edge, well away from the action
+    enemies.push(makeEnemy(kind, Math.random() < 0.5 ? size * 0.55 : W - size * 0.55, -size * 0.6, size));
+    return 1.2;
+  }
 
   // a V-shaped squadron now and then
   if (kind === 'grunt' && elapsed >= 35 && !boss && Math.random() < 0.2) {
@@ -1864,7 +2043,7 @@ function spawnTank(x) {
 }
 
 function spawnPickup(kind, x, y) {
-  const r = 20 * S;
+  const r = (kind === 'star' ? 17 : 20) * S;
   pickups.push({ kind, x: clamp(x, r, W - r), y, r, t: 0, dead: false });
 }
 
@@ -1922,7 +2101,14 @@ function updateSpawns(dt) {
 // ---------- Enemy fire ----------
 function fireShot(x, y, angle, speed, r, color, dmg) {
   if (shots.length >= MAX_SHOTS) return;
-  shots.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r, color, dmg, dead: false });
+  shots.push({ x, y, a: angle, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r, color, dmg, dead: false });
+}
+
+// A bomb tumbles sideways a little as it falls, then lands and moves with the ground (see updateShots),
+// so a bomber leaves a scattered field behind it rather than a column.
+function dropBomb(x, y) {
+  if (shots.length >= MAX_SHOTS) return;
+  shots.push({ x, y, a: Math.PI / 2, vx: rand(-50, 50) * S, vy: D.scroll, r: 9 * S, color: 'bomb', dmg: 2, t: 0, dead: false });
 }
 
 function fireFan(x, y, center, count, spread, speed, color) {
@@ -1944,9 +2130,50 @@ function killEnemy(e) {
   e.dead = true;
   kills++;
   addScore(e.score);
-  explode(e.x, e.y, e.w * 1.5);
+  explode(e.x, e.y, Math.max(e.w, e.h) * (e.kind === 'bomber' ? 1.2 : 1.5));
   playSfx(SFX.boom, 90);
-  if (Math.random() < 0.06) spawnPickup(Math.random() < 0.55 ? 'weapon' : 'health', e.x, e.y);
+  if (e.kind === 'bomber') {           // usually a star for taking down the big one, rarely a crate
+    const roll = Math.random();
+    if (roll < 0.55) spawnPickup('star', e.x, e.y);
+    else if (roll < 0.7) spawnPickup(Math.random() < 0.5 ? 'weapon' : 'health', e.x, e.y);
+  } else if (e.kind === 'transport') { // one item spills out
+    spawnPickup(Math.random() < 0.6 ? 'star' : Math.random() < 0.5 ? 'weapon' : 'health', e.x, e.y);
+  } else if (e.kind !== 'missile' && Math.random() < 0.06) {
+    spawnPickup(Math.random() < 0.55 ? 'weapon' : 'health', e.x, e.y);
+  }
+}
+
+// Bosses launch these in pairs: slow to start, they bend toward the plane and can be shot down.
+function launchMissiles(b, count) {
+  if (enemies.length > 18) return;
+  for (let i = 0; i < count; i++) {
+    const k = i - (count - 1) / 2;
+    const e = makeEnemy('missile', b.x + k * b.w * 0.45, b.y + b.h * 0.25, 16 * S);
+    e.a = Math.PI / 2 + k * 0.7;
+    enemies.push(e);
+    sparks(e.x, e.y, 4, '#ffd27a', 120 * S);
+  }
+  playSfx(SFX.shoot2);
+}
+
+// Fires `count` aimed shots in quick succession, then waits `gap` seconds before the next burst.
+function burstFire(e, dt, count, step, gap, color, speed) {
+  if (e.burst > 0) {
+    e.burstCd -= dt;
+    if (e.burstCd <= 0) {
+      e.burstCd = step;
+      e.burst--;
+      const y = e.y + e.h * 0.2;
+      fireShot(e.x, y, aimAtPlayer(e.x, y), speed * S * D.shotSpeed, 6 * S, color, 1);
+    }
+    return;
+  }
+  e.fire -= dt;
+  if (e.fire <= 0) {
+    e.fire = gap * D.cooldown;
+    e.burst = count;
+    e.burstCd = 0;
+  }
 }
 
 function updateEnemies(dt) {
@@ -1955,34 +2182,86 @@ function updateEnemies(dt) {
     e.t += dt;
     e.flash = Math.max(0, e.flash - dt);
     e.y += e.vy * dt;
+    e.x += e.vx * dt;
+
+    // movement
     if (e.kind === 'weaver') {
       e.x = e.baseX + Math.sin(e.t * e.freq + e.phase) * e.amp;
     } else if (e.kind === 'kamikaze' && e.y < p.y) {
       const step = e.steer * dt;
       e.x += clamp(p.x - e.x, -step, step);
+    } else if (e.kind === 'heli') {
+      e.rotor += dt * 36;
+      if (e.hover > 0 && e.y >= e.hoverY) { // holds position, drifting a little
+        e.y = e.hoverY;
+        e.vy = 0;
+        e.hover -= dt;
+        e.x = e.baseX + Math.sin(e.t * e.drift) * 50 * S;
+      } else if (e.hover <= 0) {
+        e.vy = Math.min(e.vy + 320 * S * dt, 280 * S); // then dives on past
+      }
+    } else if (e.kind === 'missile') {
+      e.life -= dt;
+      if (e.life <= 0) { e.dead = true; explode(e.x, e.y, e.h); continue; }
+      if (p.alive) e.a = turnToward(e.a, aimAtPlayer(e.x, e.y), e.turn * dt);
+      e.x += Math.cos(e.a) * e.speed * dt;
+      e.y += Math.sin(e.a) * e.speed * dt;
+      e.puff -= dt;
+      if (e.puff <= 0) {
+        e.puff = 0.05;
+        smoke(e.x - Math.cos(e.a) * e.h * 0.5, e.y - Math.sin(e.a) * e.h * 0.5, 7 * S, 0.4);
+      }
     }
 
-    if (e.kind !== 'kamikaze' && p.alive && e.y > 0 && e.y < H * 0.72) {
-      e.fire -= dt;
-      if (e.fire <= 0) {
-        const fromY = e.y + e.h * 0.45;
-        if (e.kind === 'sniper') {
-          fireShot(e.x, fromY, aimAtPlayer(e.x, fromY), 250 * S * D.shotSpeed, 6 * S, 'magenta', 1);
-          e.fire = rand(1.4, 2.2) * D.cooldown;
-        } else {
-          fireShot(e.x, fromY, Math.PI / 2, 300 * S * D.shotSpeed, 6 * S, 'orange', 1);
-          e.fire = rand(1, 2) * D.cooldown;
+    // guns
+    const onScreen = e.x > 0 && e.x < W && e.y > 0 && e.y < H * 0.72;
+    if (p.alive && onScreen) {
+      if (e.kind === 'heli') {
+        burstFire(e, dt, 3, 0.12, rand(1.8, 2.6), 'flame', 280);
+      } else if (e.kind === 'interceptor') {
+        e.fire -= dt;
+        if (e.fire <= 0) {
+          fireShot(e.x, e.y + e.h * 0.3, Math.PI / 2, 360 * S * D.shotSpeed, 6 * S, 'laser', 1);
+          e.fire = rand(0.35, 0.6) * D.cooldown;
+        }
+      } else if (e.kind === 'bomber') {
+        e.fire -= dt;
+        if (e.fire <= 0 && e.y < H * 0.55) {
+          dropBomb(e.x + rand(-0.45, 0.45) * e.w, e.y + e.h * 0.2);
+          e.fire = rand(1.4, 2.4) * D.cooldown;
+        }
+      } else if (e.kind === 'grunt' || e.kind === 'weaver' || e.kind === 'sniper') {
+        e.fire -= dt;
+        if (e.fire <= 0) {
+          const fromY = e.y + e.h * 0.45;
+          if (e.kind === 'sniper') {
+            fireShot(e.x, fromY, aimAtPlayer(e.x, fromY), 250 * S * D.shotSpeed, 6 * S, 'magenta', 1);
+            e.fire = rand(1.4, 2.2) * D.cooldown;
+          } else {
+            fireShot(e.x, fromY, Math.PI / 2, 300 * S * D.shotSpeed, 6 * S, 'orange', 1);
+            e.fire = rand(1, 2) * D.cooldown;
+          }
         }
       }
     }
 
-    if (e.y - e.h / 2 > H) {
+    // big aircraft trail smoke once they are badly hurt
+    if (e.maxHp >= 4 && e.hp <= e.maxHp * 0.4 && e.kind !== 'missile') {
+      e.puff -= dt;
+      if (e.puff <= 0) {
+        e.puff = 0.09;
+        smoke(e.x + rand(-0.25, 0.25) * e.w, e.y - e.h * 0.3, 8 * S, 0.55);
+      }
+    }
+
+    const gone = e.y - e.h / 2 > H || e.x < -e.w * 1.5 || e.x > W + e.w * 1.5 || e.y < -e.h * 4;
+    if (gone) {
       e.dead = true;
     } else if (p.alive && hitRects(e.x, e.y, e.w * 0.32, e.h * 0.36, p.x, p.y, p.w * PLAYER_HW, p.h * PLAYER_HH)) {
       e.dead = true;
-      explode(e.x, e.y, e.w * 1.5);
+      explode(e.x, e.y, Math.max(e.w, e.h) * 1.2);
       playSfx(SFX.boom, 90);
-      damagePlayer(2);
+      damagePlayer(e.kind === 'missile' ? 1 : 2);
     }
   }
 }
@@ -2140,7 +2419,7 @@ function spawnBoss() {
     cd: Math.max(0.6, 1 - tier * 0.12), // attack cooldown multiplier
     shot: 1 + tier * 0.12,              // bullet speed multiplier
     a: 1.2, b: 2.5, c: 5,               // attack timers
-    spin: 0, burst: 0, burstCd: 0,
+    spin: 0, burst: 0, burstCd: 0, m: 4,
     turret: Math.PI / 2,
     laser: null,
     phase: 1, enraged: false,
@@ -2212,6 +2491,13 @@ const BOSS_AI = {
     if (b.b <= 0) {
       b.b = (b.enraged ? 1.1 : 1.6) * cd;
       fireShot(b.x, y, aimAtPlayer(b.x, y), 290 * S * b.shot, 7 * S, 'orange', 1);
+    }
+    if (b.enraged) { // homing missiles once it is hurt
+      b.m -= dt;
+      if (b.m <= 0) {
+        b.m = 3.5 * cd;
+        launchMissiles(b, 2);
+      }
     }
   },
 
@@ -2318,6 +2604,13 @@ const BOSS_AI = {
         fireShot(b.x, y, aimAtPlayer(b.x, y), 300 * S * b.shot, 7 * S, 'orange', 1);
       }
     }
+    if (phase === 3) {
+      b.m -= dt;
+      if (b.m <= 0) {
+        b.m = 4.5 * cd;
+        launchMissiles(b, 2);
+      }
+    }
     if (phase >= 2) {
       b.c -= dt;
       if (b.c <= 0) {
@@ -2341,6 +2634,7 @@ function damageBoss(b, amount) {
     s.dead = true;
     sparks(s.x, s.y, 1, SHOT_COLORS[s.color], 80 * S);
   }
+  for (const e of enemies) if (e.kind === 'missile') e.dead = true; // its missiles die with it
   const reward = Math.round(b.def.score * (b.tier + 1) * (perk('score') || 1));
   score += reward;
   showBanner(b.name + ' DESTROYED', '+' + reward, '#4cd964', 2.2);
@@ -2417,28 +2711,31 @@ function updateBoss(dt) {
 function updateBullets(dt) {
   const b = boss;
   for (const s of bullets) {
+    if (s.homing) steerRocket(s, dt);
+    if (s.dead) continue;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    if (s.y < -30 || s.x < -30 || s.x > W + 30) {
+    if (s.y < -30 || s.x < -30 || s.x > W + 30 || s.y > H + 30) {
       s.dead = true;
       continue;
     }
     const hw = s.w / 2, hh = s.h / 2;
+    const dmg = s.dmg || 1;
 
     for (const e of enemies) {
       if (e.dead || !hitRects(s.x, s.y, hw, hh, e.x, e.y, e.w * 0.42, e.h * 0.42)) continue;
       s.dead = true;
-      e.hp--;
+      e.hp -= dmg;
       e.flash = 0.07;
       if (e.hp <= 0) killEnemy(e);
       break;
     }
-    if (s.dead) { sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S); continue; }
+    if (s.dead) { bulletHit(s); continue; }
 
     for (const t of tanks) {
       if (t.dead || !hitRects(s.x, s.y, hw, hh, t.x, t.y, t.w * 0.45, t.h * 0.45)) continue;
       s.dead = true;
-      t.hp--;
+      t.hp -= dmg;
       t.flash = 0.07;
       if (t.hp <= 0) {
         t.dead = true;
@@ -2449,19 +2746,60 @@ function updateBullets(dt) {
       }
       break;
     }
-    if (s.dead) { sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S); continue; }
+    if (s.dead) { bulletHit(s); continue; }
 
     if (b && b.mode === 'fight' && hitRects(s.x, s.y, hw, hh, b.x, b.y, b.w * b.def.hbw, b.h * b.def.hbh)) {
       s.dead = true;
-      sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S);
-      damageBoss(b, 1);
+      bulletHit(s);
+      damageBoss(b, dmg);
     }
   }
+}
+
+function bulletHit(s) {
+  if (s.homing) explode(s.x, s.y, 34 * S);
+  else sparks(s.x, s.y - s.h / 2, 2, '#fff3b0', 120 * S);
+}
+
+// Rockets leave the wings slowly, then accelerate and bend toward whatever is nearest ahead.
+function steerRocket(s, dt) {
+  s.life -= dt;
+  if (s.life <= 0) { s.dead = true; explode(s.x, s.y, 30 * S); return; }
+  const tgt = nearestTarget(s.x, s.y);
+  let a = Math.atan2(s.vy, s.vx);
+  if (tgt) a = turnToward(a, Math.atan2(tgt.y - s.y, tgt.x - s.x), 3.5 * dt);
+  const v = Math.min(s.speed, Math.hypot(s.vx, s.vy) + 1100 * S * dt);
+  s.vx = Math.cos(a) * v;
+  s.vy = Math.sin(a) * v;
+  s.rot = a + Math.PI / 2;
+  s.puff -= dt;
+  if (s.puff <= 0) {
+    s.puff = 0.04;
+    smoke(s.x - Math.cos(a) * s.h * 0.5, s.y - Math.sin(a) * s.h * 0.5, 6 * S, 0.35);
+  }
+}
+
+function nearestTarget(x, y) {
+  let best = null, bestD = Infinity;
+  const consider = (o, ok) => {
+    if (!ok) return;
+    const d = (o.x - x) * (o.x - x) + (o.y - y) * (o.y - y);
+    if (d < bestD) { bestD = d; best = o; }
+  };
+  for (const e of enemies) consider(e, !e.dead && e.y > -e.h / 2 && e.y < y + 40 * S);
+  for (const t of tanks) consider(t, !t.dead && t.y > 0 && t.y < y + 40 * S);
+  if (boss && boss.mode === 'fight') consider(boss, true);
+  return best;
 }
 
 function updateShots(dt) {
   const p = player;
   for (const s of shots) {
+    if (s.color === 'bomb') { // falls for about a second, then rides the ground scroll off the screen
+      s.t += dt;
+      s.vy = D.scroll + 160 * S * Math.max(0, 1 - s.t / 1.1);
+      s.vx *= Math.max(0, 1 - dt * 1.6);
+    }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
     if (s.x < -40 || s.x > W + 40 || s.y < -40 || s.y > H + 40) {
@@ -2493,9 +2831,18 @@ function updatePickups(dt) {
     } else if (p.alive && hitCircleRect(k.x, k.y, k.r, p.x, p.y, p.w * 0.4, p.h * 0.4)) {
       k.dead = true;
       if (k.kind === 'weapon') {
-        p.weapon = Math.min(3, p.weapon + 1);
+        if (p.weapon < 3) {
+          p.weapon++;
+          floatText(p.x, p.y - p.h * 0.6, p.weapon === 2 ? 'TWIN CANNONS' : 'SPREAD SHOT', '#32e0ff');
+        } else { // already at full spread: this crate arms the rocket pods
+          p.rockets = ROCKET_TIME;
+          floatText(p.x, p.y - p.h * 0.6, 'ROCKET PODS', '#ff9f1a');
+        }
         p.weaponTimer = WEAPON_TIME;
-        floatText(p.x, p.y - p.h * 0.6, p.weapon === 2 ? 'TWIN CANNONS' : 'SPREAD SHOT', '#32e0ff');
+      } else if (k.kind === 'star') {
+        const bonus = Math.round(100 * (1 + (level - 1) * 0.15) * (perk('score') || 1) / 5) * 5;
+        score += bonus;
+        floatText(p.x, p.y - p.h * 0.6, '\u2605 +' + bonus, '#ffd60a');
       } else if (p.hp < p.maxHp) {
         p.hp = Math.min(p.maxHp, p.hp + 2);
         floatText(p.x, p.y - p.h * 0.6, '+2 HEALTH', '#4cd964');
@@ -2504,7 +2851,7 @@ function updatePickups(dt) {
         score += bonus;
         floatText(p.x, p.y - p.h * 0.6, '+' + bonus, '#ffd60a');
       }
-      sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : '#4cd964', 200 * S);
+      sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : k.kind === 'star' ? '#ffd60a' : '#4cd964', 200 * S);
     }
   }
 }
@@ -2616,12 +2963,100 @@ function drawSprite(key, x, y, w, h, flash) {
   }
 }
 
-function drawShadow(key, x, y, w, h) {
+function drawShadow(key, x, y, w, h, angle) {
   const spr = SPR[key + '_s'];
   if (!spr) return;
   ctx.globalAlpha = 0.22;
-  ctx.drawImage(spr, x - w * 0.4 + 16 * S, y - h * 0.4 + 26 * S, w * 0.8, h * 0.8);
+  if (angle) {
+    ctx.save();
+    ctx.translate(x + 16 * S, y + 26 * S);
+    ctx.rotate(angle);
+    ctx.drawImage(spr, -w * 0.4, -h * 0.4, w * 0.8, h * 0.8);
+    ctx.restore();
+  } else {
+    ctx.drawImage(spr, x - w * 0.4 + 16 * S, y - h * 0.4 + 26 * S, w * 0.8, h * 0.8);
+  }
   ctx.globalAlpha = 1;
+}
+
+function drawRotated(key, x, y, w, h, angle, flash) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  drawSprite(key, 0, 0, w, h, flash);
+  ctx.restore();
+}
+
+// Sprites face straight down; craft that fly at an angle are turned to match their heading.
+function enemyAngle(e) {
+  if (e.kind === 'missile') return Math.atan2(-Math.cos(e.a), Math.sin(e.a));
+  if (e.kind === 'interceptor') return Math.atan2(-e.vx, e.vy);
+  return 0;
+}
+
+function drawEnemy(e) {
+  const angle = enemyAngle(e);
+  if (angle) {
+    drawRotated(e.sprite, e.x, e.y, e.w, e.h, angle, e.flash);
+    if (e.kind === 'missile' && SPR.thrusterB) { // exhaust at the tail
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(angle + Math.PI);
+      ctx.drawImage(SPR.thrusterB, -3 * S, e.h / 2 - 3 * S, 6 * S, 10 * S);
+      ctx.restore();
+    }
+  } else {
+    drawSprite(e.sprite, e.x, e.y, e.w, e.h, e.flash);
+    if (e.kind === 'heli' && SPR.rotor) { // the rotor disc spins, and the blades flicker as they pass
+      const spr = Math.floor(e.rotor * 1.5) % 2 ? SPR.rotor2 : SPR.rotor;
+      const d = e.w * 1.6;
+      ctx.save();
+      ctx.translate(e.x, e.y + e.h * 0.12);
+      ctx.rotate(e.rotor);
+      ctx.globalAlpha = 0.8;
+      ctx.drawImage(spr, -d / 2, -d / 2, d, d);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (e.hp < e.maxHp && e.kind !== 'missile') drawSmallBar(e.x, e.y - e.h / 2 - 6, e.w * 0.6, e.hp / e.maxHp);
+}
+
+function drawBullet(s) {
+  const spr = SPR[s.key] || SPR.bolt_yellow;
+  if (!spr) return;
+  if (!s.rot) { ctx.drawImage(spr, s.x - s.w / 2, s.y - s.h / 2, s.w, s.h); return; }
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.rot);
+  ctx.drawImage(spr, -s.w / 2, -s.h / 2, s.w, s.h);
+  if (s.homing && SPR.thrusterB) ctx.drawImage(SPR.thrusterB, -3 * S, s.h / 2 - 2 * S, 6 * S, 10 * S);
+  ctx.restore();
+}
+
+function drawShot(s) {
+  const m = SHOT_SPRITES[s.color];
+  const spr = m && SPR[m[0]];
+  if (!spr) {
+    const d = s.r * 2.6;
+    ctx.drawImage(SPR['orb_' + s.color], s.x - d / 2, s.y - d / 2, d, d);
+    return;
+  }
+  const k = s.color === 'bomb' ? 1.3 - 0.5 * Math.min(1, s.t / 1.1) : 1; // a falling bomb shrinks toward the ground
+  const w = s.r * m[2] * k, h = w * spr.height / spr.width;
+  if (!m[1]) { ctx.drawImage(spr, s.x - w / 2, s.y - h / 2, w, h); return; }
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.a + Math.PI / 2);
+  ctx.drawImage(spr, -w / 2, -h / 2, w, h);
+  if (s.color === 'shell') { // the Goliath's shells are rocket-assisted: a flickering flame at the tail
+    const jet = Math.floor(clock * 30) % 2 ? SPR.thrusterA : SPR.thrusterB;
+    if (jet) {
+      const fh = h * (0.7 + 0.15 * Math.sin(clock * 60)), fw = w * 0.7;
+      ctx.drawImage(jet, -fw / 2, h / 2 - fh * 0.15, fw, fh);
+    }
+  }
+  ctx.restore();
 }
 
 function drawTurret(spr, x, y, bodyW, angle) {
@@ -2692,14 +3127,20 @@ function drawPlayer() {
   ctx.scale(1 - Math.abs(p.tilt) * 0.14, 1); // bank into the turn
 
   const flame = p.h * (0.16 + 0.05 * Math.sin(clock * 50));
-  ctx.fillStyle = 'rgba(255, 170, 40, 0.85)';
-  ctx.beginPath();
-  ctx.ellipse(0, p.h * 0.47 + flame / 2, p.w * 0.045, flame, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
-  ctx.beginPath();
-  ctx.ellipse(0, p.h * 0.47 + flame / 4, p.w * 0.022, flame / 2, 0, 0, TAU);
-  ctx.fill();
+  const jet = Math.floor(clock * 24) % 2 ? SPR.thrusterA : SPR.thrusterB;
+  if (jet) { // two flame frames swap quickly, which reads as a flicker
+    const fh = flame * 1.9, fw = fh * 0.42;
+    ctx.drawImage(jet, -fw / 2, p.h * 0.42, fw, fh);
+  } else {
+    ctx.fillStyle = 'rgba(255, 170, 40, 0.85)';
+    ctx.beginPath();
+    ctx.ellipse(0, p.h * 0.47 + flame / 2, p.w * 0.045, flame, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(0, p.h * 0.47 + flame / 4, p.w * 0.022, flame / 2, 0, 0, TAU);
+    ctx.fill();
+  }
 
   drawSprite('player', 0, 0, p.w, p.h, 0);
   ctx.restore();
@@ -2763,6 +3204,13 @@ function drawHud() {
     ctx.fillStyle = '#32e0ff';
     ctx.fillRect(x, 82, bw * wf, 5);
   }
+  if (p.rockets > 0) {
+    const rf = clamp(p.rockets / ROCKET_TIME, 0, 1);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x, 90, bw, 5);
+    ctx.fillStyle = '#ff9f1a';
+    ctx.fillRect(x, 90, bw * rf, 5);
+  }
 
   const b = boss;
   if (b) {
@@ -2811,7 +3259,7 @@ function render() {
   if (boss && boss.def.ground) drawGroundBoss(boss);
 
   // shadows the aircraft cast on the ground
-  for (const e of enemies) drawShadow(e.sprite, e.x, e.y, e.w, e.h);
+  for (const e of enemies) drawShadow(e.sprite, e.x, e.y, e.w, e.h, enemyAngle(e));
   if (boss && !boss.def.ground) drawShadow(boss.def.id, boss.x, boss.y, boss.w, boss.h);
   if (player.alive) drawShadow('player', player.x, player.y, player.w, player.h);
 
@@ -2819,6 +3267,21 @@ function render() {
 
   for (const k of pickups) {
     const pulse = 1 + 0.12 * Math.sin(k.t * 6);
+    if (k.kind === 'star') {
+      ctx.fillStyle = 'rgba(255, 214, 10, 0.3)';
+      ctx.beginPath();
+      ctx.arc(k.x, k.y, k.r * 1.3 * pulse, 0, TAU);
+      ctx.fill();
+      if (SPR.star) { // spins like a coin
+        const d = k.r * 2.2;
+        ctx.save();
+        ctx.translate(k.x, k.y);
+        ctx.scale(0.2 + 0.8 * Math.abs(Math.cos(k.t * 3)), 1);
+        ctx.drawImage(SPR.star, -d / 2, -d / 2, d, d);
+        ctx.restore();
+      }
+      continue;
+    }
     ctx.fillStyle = k.kind === 'weapon' ? 'rgba(50, 224, 255, 0.35)' : 'rgba(76, 217, 100, 0.35)';
     ctx.beginPath();
     ctx.arc(k.x, k.y, k.r * 1.25 * pulse, 0, TAU);
@@ -2827,26 +3290,27 @@ function render() {
     else drawSprite('health', k.x, k.y, k.r * 2.4, k.r * 2.4, 0);
   }
 
-  for (const e of enemies) {
-    drawSprite(e.sprite, e.x, e.y, e.w, e.h, e.flash);
-    if (e.hp < e.maxHp) drawSmallBar(e.x, e.y - e.h / 2 - 6, e.w * 0.6, e.hp / e.maxHp);
-  }
+  for (const e of enemies) drawEnemy(e);
   if (boss && !boss.def.ground) drawAirBoss(boss);
 
-  for (const s of bullets) ctx.drawImage(SPR[s.color], s.x - s.w * 0.75, s.y - s.h * 0.7, s.w * 1.5, s.h * 1.4);
+  for (const s of bullets) drawBullet(s);
   if (player.alive) drawPlayer();
 
   if (boss && boss.laser) drawLaser(boss);
-  for (const s of shots) {
-    const d = s.r * 2.6;
-    ctx.drawImage(SPR['orb_' + s.color], s.x - d / 2, s.y - d / 2, d, d);
-  }
+  for (const s of shots) drawShot(s);
 
   drawExplosions();
   for (const q of particles) {
-    ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
-    ctx.fillStyle = q.color;
-    ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
+    const k = clamp(q.life / q.max, 0, 1);
+    if (q.spr && SPR[q.spr]) { // smoke puffs grow and thin out
+      ctx.globalAlpha = k * 0.7;
+      const d = q.size * (2.4 - 1.4 * k);
+      ctx.drawImage(SPR[q.spr], q.x - d / 2, q.y - d / 2, d, d);
+    } else {
+      ctx.globalAlpha = k;
+      ctx.fillStyle = q.color;
+      ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
+    }
   }
   ctx.globalAlpha = 1;
   drawClouds('high'); // over the whole battle, under the floating text and the HUD
@@ -2890,6 +3354,7 @@ let pickerReturn = null; // the overlay to go back to when the plane picker clos
 function planeThumb(i) {
   const spr = SPR['plane' + i];
   if (!spr) { // not loaded yet: fall back to the file
+    if (!PLANES[i].file) return makeCanvas(144, 144); // atlas planes have no file of their own
     const img = document.createElement('img');
     img.src = PLANES[i].file;
     img.alt = '';
@@ -2907,6 +3372,7 @@ function selectPlane(i) {
   if (!planeAvailable(i)) return;
   selectedPlane = i;
   writeStore('planeCrashPlane', String(i));
+  writeStore('planeCrashPlaneName', PLANES[i].name);
   applyPlane();
   renderPlanePicker();
 }
@@ -3167,7 +3633,7 @@ function revivePlayer() {
   p.weapon = Math.max(p.weapon, 2);
   p.weaponTimer = WEAPON_TIME;
   for (const s of shots) s.dead = true;
-  for (const e of enemies) if (e.kind === 'kamikaze') e.dead = true;
+  for (const e of enemies) if (e.kind === 'kamikaze' || e.kind === 'missile') e.dead = true;
   hurtFlash = 0; shake = 0; deathTimer = 0;
   drag = null;
   keys.clear();

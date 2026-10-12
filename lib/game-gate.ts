@@ -18,6 +18,7 @@ type FileKind = "frame" | "image" | "audio";
 // which also rules out path tricks like "../".
 const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "index.html": { type: "text/html; charset=utf-8", kind: "frame" },
+  "atlas.png": { type: "image/png", kind: "image" },
   "bg-sprite.png": { type: "image/png", kind: "image" },
   "bg-sprite-1.png": { type: "image/png", kind: "image" },
   "bg-sprite-2.png": { type: "image/png", kind: "image" },
