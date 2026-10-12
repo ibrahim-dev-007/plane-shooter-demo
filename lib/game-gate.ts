@@ -22,6 +22,7 @@ const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "bg-sprite-1.png": { type: "image/png", kind: "image" },
   "bg-sprite-2.png": { type: "image/png", kind: "image" },
   "boss.png": { type: "image/png", kind: "image" },
+  "cloud.png": { type: "image/png", kind: "image" },
   "enemy-plane-1.png": { type: "image/png", kind: "image" },
   "enemy-plane-2.png": { type: "image/png", kind: "image" },
   "enemy-plane-3.png": { type: "image/png", kind: "image" },

@@ -1007,6 +1007,15 @@ function scaled(img, targetW) {
   return out;
 }
 
+function mirrored(src) {
+  const c = makeCanvas(src.width, src.height);
+  const g = c.getContext('2d');
+  g.translate(c.width, 0);
+  g.scale(-1, 1);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+
 function tinted(src, color, alpha) {
   const c = makeCanvas(src.width, src.height);
   const g = c.getContext('2d');
@@ -1172,6 +1181,14 @@ function loadAssets() {
   loadImage('./missile.png', img => addSprite('weapon', scaled(img, 96), false));
   loadImage('./powerup.png', img => addSprite('health', scaled(img, 128), false));
   loadImage('./explosion.png', img => { SPR.explosion = scaled(img, 1200); });
+  loadImage('./cloud.png', img => {
+    SPR.cloud = scaled(img, 512);
+    // the PNG is wispy; stacking it on itself once thickens the body while the edges stay soft
+    SPR.cloud.getContext('2d').drawImage(SPR.cloud, 0, 0);
+    SPR.cloud_f = mirrored(SPR.cloud);          // mirrored copy, so two clouds never look the same
+    SPR.cloud_s = tinted(SPR.cloud, '#000', 1); // soft shadow a low cloud throws on the ground
+    SPR.cloud_fs = mirrored(SPR.cloud_s);
+  });
   // Backgrounds cycle every 2nd boss; each is loaded into its slot so the order is stable.
   BG_FILES.forEach((src, i) => loadImage(src, img => {
     SPR.bgs[i] = makeSeamless(img, 160);
@@ -1476,6 +1493,7 @@ let enemyTimer = 0, tankTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
 let deathTimer = 0;
 let bgScroll = 0, shake = 0, hurtFlash = 0;
 let bgIndex = 0, bgFade = null; // bgFade = { from, to, t } while cross-fading
+let clouds = [], cloudTimer = { low: 0, high: 0 };
 let banner = null;
 let rafId = 0, lastFrame = 0;
 
@@ -1514,6 +1532,7 @@ function resetGame() {
   deathTimer = 0;
   bgScroll = 0; shake = 0; hurtFlash = 0;
   bgIndex = 0; bgFade = null;
+  seedClouds();
   unlockedThisRun = null;
   bestAtStart = best;
   runCounted = false; countedKills = 0; countedBosses = 0; countedTime = 0;
@@ -1869,6 +1888,7 @@ function updateSpawns(dt) {
         const def = BOSSES[bossIndex % BOSSES.length];
         warning = { t: 2.4 };
         showBanner('WARNING', bossName(def, bossIndex) + ' APPROACHING', '#ff5252', 2.4);
+        cloudFront();
         spawnPickup('weapon', rand(30, W - 30), -30); // a supply drop for the fight ahead
       }
     }
@@ -1990,6 +2010,117 @@ function updateTanks(dt) {
 function bossName(def, index) {
   const tier = Math.floor(index / BOSSES.length);
   return def.name + (tier ? ' MK ' + roman(tier + 1) : '');
+}
+
+// ---------- Clouds ----------
+// Two layers of cloud give the flat ground some depth. Low clouds drift between the ground
+// and the aircraft, hiding tanks and shadows for a moment; high clouds pass over everything.
+// Each layer scrolls faster than the ground, as nearer things do, which reads as altitude.
+//   speed - scroll speed as a multiple of the ground speed
+//   alpha - opacity range; high clouds stay thin so the player and bullets are always readable
+//   size  - width range, as a fraction of the screen width (capped so desktops do not get giants)
+//   every - seconds between random spawns
+//   max   - random spawns never stack more than this many on screen
+const CLOUD = {
+  low:  { speed: 1.5, alpha: [0.7, 0.9],  size: [0.3, 0.55], every: [3, 7],   max: 3 },
+  high: { speed: 2.2, alpha: [0.5, 0.65], size: [0.5, 0.85], every: [10, 22], max: 2 }
+};
+
+function spawnCloud(layer, y) {
+  if (!SPR.cloud) return null;
+  const c = CLOUD[layer];
+  const ref = Math.min(W, 720);
+  const w = ref * rand(c.size[0], c.size[1]);
+  const h = w * SPR.cloud.height / SPR.cloud.width;
+  const cloud = {
+    layer, w, h,
+    x: rand(-w * 0.2, W + w * 0.2),
+    y: y === undefined ? -h / 2 : y,
+    vx: rand(-10, 10) * (layer === 'high' ? 1.8 : 1), // a little side wind, more up high
+    speed: c.speed * rand(0.92, 1.08),
+    alpha: rand(c.alpha[0], c.alpha[1]),
+    flip: Math.random() < 0.5,
+    dead: false
+  };
+  clouds.push(cloud);
+  return cloud;
+}
+
+function cloudCount(layer) {
+  let n = 0;
+  for (const c of clouds) if (c.layer === layer) n++;
+  return n;
+}
+
+// A run starts with a few low clouds already on screen, so the sky is never empty.
+function seedClouds() {
+  clouds = [];
+  cloudTimer = { low: rand(1.5, 3), high: rand(6, 12) };
+  for (let i = 0; i < 2; i++) spawnCloud('low', rand(H * 0.1, H * 0.6));
+}
+
+// A bank of high cloud rolls in during the boss warning: two staggered rows, slower than a
+// passing cloud, so the back row still covers the top of the screen when the boss flies out of it.
+function cloudFront() {
+  const n = W > 700 ? 4 : 3;
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < n; i++) {
+      const c = spawnCloud('high');
+      if (!c) return;
+      c.x = (i + 0.5 + row * 0.5) * W / n + rand(-W * 0.08, W * 0.08);
+      c.y -= rand(0, 60 * S) + row * 240 * S;
+      c.speed = CLOUD.high.speed * 0.75;
+      c.alpha = rand(0.6, 0.75);
+    }
+  }
+  cloudTimer.high = rand(14, 22); // the sky stays clear for a while after the front
+}
+
+// A puff of cloud over a background cross-fade, so a new biome feels flown into rather than switched.
+function cloudBurst() {
+  for (let i = 0; i < 2; i++) {
+    const c = spawnCloud('low');
+    if (c) c.y -= i * 90 * S;
+  }
+  const hi = spawnCloud('high');
+  if (hi) hi.alpha = 0.4;
+  cloudTimer.low = rand(4, 7);
+}
+
+function updateClouds(dt) {
+  for (const c of clouds) {
+    c.y += D.scroll * c.speed * dt;
+    c.x += c.vx * dt;
+    if (c.y - c.h / 2 > H) c.dead = true;
+  }
+  alive(clouds);
+  if (state !== 'playing') return;
+  for (const layer in CLOUD) {
+    cloudTimer[layer] -= dt;
+    if (cloudTimer[layer] > 0) continue;
+    const c = CLOUD[layer];
+    cloudTimer[layer] = rand(c.every[0], c.every[1]);
+    // boss fights are busy enough: no random high cloud over the arena, only the front that announced it
+    if (layer === 'high' && boss) continue;
+    if (cloudCount(layer) < c.max + (W > 900 ? 1 : 0)) spawnCloud(layer); // wide screens hold one more
+  }
+}
+
+function drawClouds(layer) {
+  if (!SPR.cloud) return;
+  if (layer === 'low') { // shadows first, so no cloud shades another cloud
+    for (const c of clouds) {
+      if (c.layer !== layer) continue;
+      ctx.globalAlpha = c.alpha * 0.25;
+      ctx.drawImage(c.flip ? SPR.cloud_fs : SPR.cloud_s, c.x - c.w / 2 + 18 * S, c.y - c.h / 2 + 32 * S, c.w, c.h);
+    }
+  }
+  for (const c of clouds) {
+    if (c.layer !== layer) continue;
+    ctx.globalAlpha = c.alpha;
+    ctx.drawImage(c.flip ? SPR.cloud_f : SPR.cloud, c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function spawnBoss() {
@@ -2243,6 +2374,7 @@ function nextBackground() {
   const to = (bgIndex + 1) % BG_FILES.length;
   bgFade = { from: bgIndex, to, t: 0 };
   bgIndex = to;
+  cloudBurst();
 }
 
 function updateBoss(dt) {
@@ -2426,6 +2558,7 @@ function update(dt) {
   updateShots(dt);
   updatePickups(dt);
   updateEffects(dt);
+  updateClouds(dt);
 
   alive(bullets); alive(enemies); alive(tanks); alive(shots); alive(pickups);
   alive(explosions); alive(particles); alive(texts);
@@ -2682,6 +2815,8 @@ function render() {
   if (boss && !boss.def.ground) drawShadow(boss.def.id, boss.x, boss.y, boss.w, boss.h);
   if (player.alive) drawShadow('player', player.x, player.y, player.w, player.h);
 
+  drawClouds('low'); // between the ground and everything that flies
+
   for (const k of pickups) {
     const pulse = 1 + 0.12 * Math.sin(k.t * 6);
     ctx.fillStyle = k.kind === 'weapon' ? 'rgba(50, 224, 255, 0.35)' : 'rgba(76, 217, 100, 0.35)';
@@ -2714,6 +2849,8 @@ function render() {
     ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
   }
   ctx.globalAlpha = 1;
+  drawClouds('high'); // over the whole battle, under the floating text and the HUD
+
   ctx.textBaseline = 'alphabetic';
   for (const t of texts) {
     ctx.globalAlpha = clamp(t.life / 0.5, 0, 1);
