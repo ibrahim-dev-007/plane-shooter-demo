@@ -836,8 +836,8 @@ const FIRST_BOSS_AT = 35;     // seconds until the first boss
 const BOSS_GAP = 30;          // seconds between a boss dying and the next one
 const MAX_SHOTS = 320;
 const MAX_PARTICLES = 260;
-const PLAYER_HW = 0.2;        // player hitbox half-size, as a fraction of the sprite
-const PLAYER_HH = 0.3;
+const PLAYER_HW = 0.176;      // player hitbox half-size, as a fraction of the sprite (the same
+const PLAYER_HH = 0.264;      // pixels as before the sprite grew from 88 to 100)
 
 // Everything that makes the game harder is derived from the seconds survived.
 function difficulty(t) {
@@ -855,9 +855,10 @@ function difficulty(t) {
 
 // Bosses come in this order, then the list repeats one tier stronger ("MK II", ...).
 const BOSSES = [
-  { id: 'viper',       name: 'VIPER',       w: 150, h: 153, hp: 60,  hbw: 0.36, hbh: 0.42, score: 500 },
+  { id: 'viper',       name: 'VIPER',       w: 200, h: 137, hp: 60,  hbw: 0.40, hbh: 0.38, score: 500 },
   { id: 'vulture',     name: 'VULTURE',     w: 200, h: 200, hp: 95,  hbw: 0.40, hbh: 0.36, score: 800 },
   { id: 'goliath',     name: 'GOLIATH',     w: 150, h: 229, hp: 140, hbw: 0.44, hbh: 0.45, score: 1200, ground: true },
+  { id: 'gunship',     name: 'GUNSHIP',     w: 150, h: 303, hp: 165, hbw: 0.34, hbh: 0.30, score: 1500, heli: true },
   { id: 'hive',        name: 'HIVE',        w: 240, h: 240, hp: 180, hbw: 0.40, hbh: 0.36, score: 1600 },
   { id: 'dreadnought', name: 'DREADNOUGHT', w: 280, h: 280, hp: 240, hbw: 0.40, hbh: 0.36, score: 2500 }
 ];
@@ -882,13 +883,14 @@ const SHOT_COLORS = {
   shell: '#ffe14d',
   bomb: '#ffb020',
   laser: '#ff3b3b',
-  flame: '#ff9a2e'
+  flame: '#ff9a2e',
+  ball: '#aab4bf'
 };
 
 // How each shot colour is drawn from the atlas: [sprite, turns with its heading, width as a multiple of r].
 // A colour with no entry (or a sprite that failed to load) falls back to the plain orb of that colour.
 const SHOT_SPRITES = {
-  orange:  ['fireball', true, 2.2],
+  orange:  ['flame', true, 2.2],
   magenta: ['orbPink', false, 2.6],
   red:     ['orbRed', false, 3.2],
   shell:   ['bomb', true, 2],
@@ -911,7 +913,7 @@ function applyPlane() {
 
 // Planes have different shapes, so fit each inside the same square without stretching.
 function playerSize() {
-  const size = 88 * S;
+  const size = 100 * S;
   const spr = SPR['plane' + selectedPlane];
   const aspect = spr ? spr.width / spr.height : 1;
   return aspect >= 1 ? { w: size, h: size / aspect } : { w: size * aspect, h: size };
@@ -939,7 +941,14 @@ function resizeCanvas() {
 // ---------- Sprites ----------
 // The source PNGs are huge, so every sprite is downscaled once into a small canvas.
 const SPR = { bgs: [] };
-const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png'];
+const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png', './bg-sprite-3.png'];
+const SEA_BG = 3; // the ocean: gunboats patrol instead of tanks, and bombers stay away
+// Missile bases keyed by background index. Only the ocean (3) has one.
+//   [file, drawn width]
+const OUTPOSTS = {
+  3: ['./bg-sprite-3-outpost.png', 150]
+};
+const atSea = () => bgIndex === SEA_BG;
 const BG_FADE_TIME = 2.5; // seconds for a background cross-fade
 const BG_SWITCH_EVERY = 1; // bosses defeated per background change
 // Standard plane i unlocks once the player has defeated i bosses; the first is always available.
@@ -1002,6 +1011,7 @@ function finishLoading() {
     loadScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
     renderIdle();
+    switchMusic('menu');
   }, 300);
 }
 
@@ -1068,6 +1078,17 @@ const ATLAS = {
   drop:        [1472, 836, 32, 46],    smoke:       [1508, 836, 42, 40],
   thrusterA:   [1554, 836, 20, 30],    thrusterB:   [1578, 836, 16, 26]
 };
+
+// A neon halo baked once per sprite: the sprite is drawn with a wide coloured shadow, stacked so the
+// glow is strong, with a bright inner pass. drawBullet adds it under the bullet with 'lighter'.
+function glowed(src, color, pad) {
+  const c = makeCanvas(src.width + pad * 2, src.height + pad * 2);
+  const g = c.getContext('2d');
+  g.shadowColor = color;
+  g.shadowBlur = pad;
+  for (let i = 0; i < 2; i++) g.drawImage(src, pad, pad);
+  return c;
+}
 
 function cut(img, key, targetW) {
   const [x, y, w, h] = ATLAS[key];
@@ -1151,6 +1172,21 @@ function makeOrb(color) {
   return c;
 }
 
+// The art pack has no ship, so the gunboat is drawn: a navy-grey hull seen from above with a
+// bridge, funnel, mast and lifeboats. Its two guns are the tank turret, aimed separately (see updateTanks).
+// An iron cannonball with a highlight, for the gunboats.
+function makeBall() {
+  const c = makeCanvas(40, 40);
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(14, 14, 2, 20, 20, 19);
+  grad.addColorStop(0, '#d5dce2');
+  grad.addColorStop(0.45, '#5a646e');
+  grad.addColorStop(1, '#161b20');
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(20, 20, 19, 0, TAU); g.fill();
+  return c;
+}
+
 function makeBolt(color) {
   const c = makeCanvas(16, 44);
   const g = c.getContext('2d');
@@ -1204,6 +1240,7 @@ function loadAssets() {
   for (const name in SHOT_COLORS) SPR['orb_' + name] = makeOrb(SHOT_COLORS[name]);
   SPR.bolt_yellow = makeBolt('#ffd60a');
   SPR.bolt_cyan = makeBolt('#32e0ff');
+  SPR.orb_ball = makeBall();
 
   PLANES.forEach((p, i) => {
     if (p.base !== undefined || p.atlas) return; // built from a base sprite, or cut from the atlas below
@@ -1223,8 +1260,10 @@ function loadAssets() {
   loadImage('./enemy-plane-2.png', img => addSprite('enemy2', scaled(img, 180), true));
   loadImage('./enemy-plane-3.png', img => {
     addSprite('enemy3', scaled(img, 180), true);
-    addSprite('viper', tinted(scaled(img, 400), '#ff1744', 0.3), true);
+    // the first boss has its own art now, see boss-plane-1.png below
   });
+  loadImage('./boss-plane-1.png', img => addSprite('viper', flippedV(scaled(img, 440)), true)); // drawn nose-up, so turned over
+  for (const i in OUTPOSTS) loadImage(OUTPOSTS[i][0], img => addSprite('outpost' + i, scaled(img, 400), false));
   loadImage('./boss.png', img => {
     addSprite('vulture', scaled(img, Math.min(640, img.naturalWidth)), true);
     addTint('hive', 'vulture', '#39d353', 0.4);
@@ -1260,16 +1299,40 @@ function loadAssets() {
     addSprite('transport1', foe('transport1', 220), true);
     addSprite('transport2', foe('transport2', 240), true);
     addSprite('emissile', foe('missileRed', 32), true);
+    addSprite('gunship', tinted(foe('heli2', 200), '#ff6a3d', 0.3), true); // the helicopter boss
     SPR.rotor = cut(img, 'rotor', 240);
     SPR.rotor2 = cut(img, 'rotor2', 240);
-    for (const k of ['fireball', 'plasma', 'star', 'laser', 'crescent', 'orbGlow', 'rocket', 'flame',
+    for (const k of ['plasma', 'star', 'laser', 'crescent', 'orbGlow', 'rocket', 'flame',
                      'bomb', 'orbPink', 'drop', 'smoke', 'thrusterA', 'thrusterB']) SPR[k] = cut(img, k);
     SPR.orbRed = tinted(SPR.orbGlow, '#ff2020', 0.6);
+    for (const k of ['plasma', 'crescent', 'drop']) SPR[k + '_g'] = glowed(SPR[k], '#36e4ff', 10);
+    SPR.rocket_g = glowed(SPR.rocket, '#ffb347', 8);
     PLANES.forEach((p, i) => {
       if (!p.atlas) return;
       addSprite('plane' + i, cut(img, p.atlas, 220), true);
       if (selectedPlane === i) applyPlane();
     });
+  });
+  loadImage('./boats.png', img => {
+    const cutB = key => {
+      const [x, y, w, h] = BOAT_SHEET[key];
+      const c = makeCanvas(w, h);
+      c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+      return c;
+    };
+    for (const kind in BOATS) {
+      addSprite(kind, cutB(kind), false);
+      addSprite(kind + '_dmg', cutB(kind + '_dmg'), false);
+      const [x, y, w, h, n] = BOAT_SHEET['wake_' + kind]; // a strip of frames, left to right
+      SPR['wake_' + kind] = [];
+      for (let i = 0; i < n; i++) {
+        const c = makeCanvas(w, h);
+        c.getContext('2d').drawImage(img, x + i * w, y, w, h, 0, 0, w, h);
+        SPR['wake_' + kind].push(c);
+      }
+    }
+    SPR.gunMain = cutB('gunMain');
+    SPR.gunAA = cutB('gunAA');
   });
   // Backgrounds cycle every 2nd boss; each is loaded into its slot so the order is stable.
   BG_FILES.forEach((src, i) => loadImage(src, img => {
@@ -1298,32 +1361,50 @@ const legacyMuted = readStore('planeCrashMuted', '0') === '1';
 let sfxOn = readStore('planeCrashSfx', legacyMuted ? '0' : '1') === '1';
 let musicOn = readStore('planeCrashMusic', legacyMuted ? '0' : '1') === '1';
 
-function makePool(src, count, volume) {
+function makePool(srcs, count, volume, vary) {
+  if (!Array.isArray(srcs)) srcs = [srcs];
   const els = [];
   for (let i = 0; i < count; i++) {
-    const el = new Audio(src);
+    const el = new Audio(srcs[i % srcs.length]);
     el.preload = 'auto';
     el.volume = volume;
     trackAudio(el);
     els.push(el);
   }
-  return { els, next: 0, last: 0 };
+  return { els, next: 0, last: 0, vary: vary || 0 };
 }
 
-// One Audio element cannot overlap itself, so each sound gets a small pool.
+// One Audio element cannot overlap itself, so each sound gets a small pool. A pool cycles through
+// several files where the pack has variants, and `vary` nudges the pitch a little on every play so
+// a stream of shots or explosions never sounds like the same sample repeating.
+// The MP3s are made from game/audio (see README there). Volumes even out the source levels:
+// the gun and UI files are quiet, the explosions are hot.
 const SFX = {
-  shoot: makePool('./shoot.mp3', 4, 0.22),
-  shoot2: makePool('./shoot2.mp3', 4, 0.22),
-  boom: makePool('./dead.mp3', 3, 0.3),
-  dead: makePool('./dead.mp3', 1, 0.9),
-  bigBoom: makePool('./mixkit-fire-explosion-1343.wav', 1, 0.55)
+  mg:        makePool(['./sfx-mg1.mp3', './sfx-mg2.mp3', './sfx-mg3.mp3'], 6, 0.5, 0.06),
+  plasma:    makePool('./sfx-plasma.mp3', 4, 0.3, 0.05),
+  laser:     makePool('./sfx-laser.mp3', 3, 0.22, 0.08),
+  cannon:    makePool('./sfx-cannon.mp3', 2, 0.4, 0.06),
+  missile:   makePool('./sfx-missile.mp3', 3, 0.32, 0.06),
+  bomb:      makePool('./sfx-bomb.mp3', 2, 0.35, 0.05),
+  boomS:     makePool('./sfx-boom-s.mp3', 4, 0.38, 0.1),
+  boomM:     makePool('./sfx-boom-m.mp3', 3, 0.48, 0.08),
+  boomL:     makePool('./sfx-boom-l.mp3', 1, 0.75, 0),
+  hit:       makePool(['./sfx-hit1.mp3', './sfx-hit2.mp3'], 4, 0.2, 0.1),
+  hurt:      makePool('./sfx-hurt.mp3', 1, 0.65, 0),
+  shield:    makePool('./sfx-shield.mp3', 1, 0.5, 0),
+  health:    makePool('./sfx-pickup-health.mp3', 1, 0.5, 0),
+  powerup:   makePool('./sfx-pickup-powerup.mp3', 1, 0.5, 0),
+  star:      makePool('./sfx-pickup-star.mp3', 2, 0.45, 0.04),
+  extraLife: makePool('./sfx-extra-life.mp3', 1, 0.6, 0),
+  alarm:     makePool('./sfx-alarm.mp3', 1, 0.5, 0),
+  uiClick:   makePool('./sfx-ui-click.mp3', 2, 0.7, 0),
+  uiSelect:  makePool('./sfx-ui-select.mp3', 1, 0.7, 0),
+  uiBack:    makePool('./sfx-ui-back.mp3', 1, 0.7, 0),
+  uiPause:   makePool('./sfx-ui-pause.mp3', 1, 0.7, 0),
+  jingleStart:   makePool('./jingle-start.mp3', 1, 0.5, 0),
+  jingleVictory: makePool('./jingle-victory.mp3', 1, 0.55, 0),
+  jingleOver:    makePool('./jingle-over.mp3', 1, 0.55, 0)
 };
-
-const music = new Audio('./background.mp3');
-music.loop = true;
-music.volume = 0.4;
-music.preload = 'auto';
-trackAudio(music);
 
 function playSfx(pool, minGap) {
   if (!sfxOn) return;
@@ -1333,10 +1414,69 @@ function playSfx(pool, minGap) {
   const el = pool.els[pool.next++ % pool.els.length];
   try {
     el.currentTime = 0;
+    if (pool.vary) {
+      el.preservesPitch = false;
+      el.playbackRate = 1 + rand(-pool.vary, pool.vary);
+    }
     const p = el.play();
     if (p && p.catch) p.catch(() => {});
   } catch (err) { /* audio is optional */ }
 }
+
+// ---------- Music ----------
+// Three loops, one per mood. Switching cross-fades over about a second, driven by a timer so the
+// fade also runs on the menu and game-over screens, where the game loop is idle.
+const MUSIC_FADE = 1.2; // volume per second
+const MUSIC = {
+  menu: musicTrack('./music-menu.mp3', 0.45),
+  game: musicTrack('./music-game.mp3', 0.42),
+  boss: musicTrack('./music-boss.mp3', 0.5)
+};
+let musicCur = null; // key of the loop that should be heard
+let musicTickAt = performance.now();
+
+function musicTrack(src, vol) {
+  const el = new Audio(src);
+  el.loop = true;
+  el.preload = 'auto';
+  el.volume = 0;
+  trackAudio(el);
+  return { el, vol, target: 0 };
+}
+
+function playTrack(t) {
+  const p = t.el.play();
+  if (p && p.catch) p.catch(() => {}); // blocked until the first tap; unlockAudio retries
+}
+
+// Fade to `key` (or to silence with null). `restart` begins that loop from the top.
+function switchMusic(key, restart) {
+  musicCur = key;
+  for (const k in MUSIC) {
+    const t = MUSIC[k];
+    t.target = k === key ? t.vol : 0;
+    if (k !== key) continue;
+    if (restart) { try { t.el.currentTime = 0; } catch (err) { /* not loaded yet */ } }
+    if (musicOn) playTrack(t);
+  }
+}
+
+function musicTick() {
+  const now = performance.now();
+  const dt = Math.min((now - musicTickAt) / 1000, 0.25);
+  musicTickAt = now;
+  for (const k in MUSIC) {
+    const t = MUSIC[k];
+    const target = musicOn ? t.target : 0;
+    if (t.el.volume === target) {
+      if (target === 0 && !t.el.paused) t.el.pause();
+      continue;
+    }
+    const step = MUSIC_FADE * dt;
+    t.el.volume = t.el.volume < target ? Math.min(target, t.el.volume + step) : Math.max(0, t.el.volume - step);
+  }
+}
+setInterval(musicTick, 50);
 
 // Mobile browsers only let a sound play later if it was first started from a tap,
 // so start every sound effect silently on the first Play press.
@@ -1357,12 +1497,19 @@ function unlockAudio() {
       }
     }
   }
+  playMusic(); // the menu loop may have been refused before this tap
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('keydown', unlockAudio, { once: true });
+
+// Resume whichever loop is current (after a pause, or once audio is unlocked).
+function playMusic() {
+  if (!musicOn || !musicCur) return;
+  playTrack(MUSIC[musicCur]);
 }
 
-function playMusic() {
-  if (!musicOn) return;
-  const p = music.play();
-  if (p && p.catch) p.catch(() => {});
+function pauseMusic() {
+  for (const k in MUSIC) MUSIC[k].el.pause();
 }
 
 function setSfx(on) {
@@ -1374,8 +1521,7 @@ function setSfx(on) {
 function setMusic(on) {
   musicOn = on;
   writeStore('planeCrashMusic', on ? '1' : '0');
-  if (!on) music.pause();
-  else if (state === 'playing') playMusic();
+  if (on) playMusic(); // off: musicTick fades every loop out, then pauses it
   syncAudioUi();
 }
 
@@ -1576,7 +1722,7 @@ let elapsed = 0;      // seconds survived, drives the difficulty
 let clock = 0;        // animation clock
 let D = difficulty(0);
 let level = 1, levelPulse = 0;
-let enemyTimer = 0, tankTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
+let enemyTimer = 0, tankTimer = 0, outpostTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
 let deathTimer = 0;
 let bgScroll = 0, shake = 0, hurtFlash = 0;
 let bgIndex = 0, bgFade = null; // bgFade = { from, to, t } while cross-fading
@@ -1586,7 +1732,7 @@ let rafId = 0, lastFrame = 0;
 
 function resetGame() {
   applyPlane();
-  const size = 88 * S;
+  const size = 100 * S;
   const ps = playerSize();
   // Armor Plating is spent one run at a time.
   const armored = wallet.armor > 0;
@@ -1617,7 +1763,7 @@ function resetGame() {
   elapsed = 0; clock = 0;
   D = difficulty(0);
   level = 1; levelPulse = 0;
-  enemyTimer = 0.8; tankTimer = 8; weaponDropTimer = 12; healthDropTimer = 28;
+  enemyTimer = 0.8; tankTimer = 8; outpostTimer = 20; weaponDropTimer = 12; healthDropTimer = 28;
   deathTimer = 0;
   bgScroll = 0; shake = 0; hurtFlash = 0;
   bgIndex = 0; bgFade = null;
@@ -1804,7 +1950,7 @@ function firePlayer() {
       add(p.x + p.w * 0.12, 0.2, 'drop');
     }
   }
-  playSfx(p.weapon === 1 ? SFX.shoot : SFX.shoot2);
+  playSfx(p.weapon === 1 ? SFX.mg : SFX.plasma);
 }
 
 // Rocket pods: one rocket at a time, alternating wings. It leaves slowly, then accelerates and
@@ -1821,7 +1967,7 @@ function fireRockets() {
     homing: true, speed: 480 * S, life: 2, puff: 0,
     dead: false
   });
-  playSfx(SFX.shoot2);
+  playSfx(SFX.missile);
 }
 
 function updatePlayer(dt) {
@@ -1888,6 +2034,7 @@ function perk(name) {
 function damagePlayer(amount) {
   const p = player;
   if (!p.alive || p.invuln > 0) return;
+  playSfx(p.hp > p.baseHp ? SFX.shield : SFX.hurt); // armor plating rings, the plane itself crunches
   p.hp -= amount * (1 - (perk('resist') || 0)); // the Aegis shrugs off part of every hit
   p.invuln = 1.1;
   hurtFlash = 1;
@@ -1901,7 +2048,7 @@ function damagePlayer(amount) {
     drag = null;
     shake = 16;
     explode(p.x, p.y, p.w * 2.6, true);
-    playSfx(SFX.dead);
+    playSfx(SFX.boomL);
   }
 }
 
@@ -1914,7 +2061,7 @@ function pickEnemyKind(t) {
   if (t >= 30) pool.push(['heli', 1.2 + Math.min(1.5, t / 150)]);
   if (t >= 40) pool.push(['transport', 0.45]);
   if (t >= 55) pool.push(['interceptor', 1 + Math.min(2, t / 120)]);
-  if (t >= 80) pool.push(['bomber', 0.8 + Math.min(1.2, t / 200)]);
+  if (t >= 80 && !atSea()) pool.push(['bomber', 0.8 + Math.min(1.2, t / 200)]);
   let total = 0;
   for (const entry of pool) total += entry[1];
   let roll = Math.random() * total;
@@ -1943,11 +2090,11 @@ function makeEnemy(kind, x, y, size) {
     e.vy = 250 * S * (1 + Math.min(elapsed / 600, 0.5));
     e.steer = 130 * S * (1 + Math.min(elapsed / 400, 0.6));
   } else if (kind === 'heli') {
-    e.hp = 4 + D.hpBonus;
+    e.hp = 7 + D.hpBonus;
     e.vy = 170 * S * D.speed;
     e.hoverY = rand(H * 0.16, H * 0.34);
     e.hover = rand(5, 7); // seconds it holds position before flying on
-    e.baseX = clamp(x, size, W - size);
+    e.hoverT = -1;        // < 0 until it arrives; then the time spent hovering, which drives the drift
     e.drift = rand(0.8, 1.3);
     e.rotor = rand(0, TAU);
     e.fire = rand(0.8, 1.4);
@@ -2029,17 +2176,82 @@ function spawnEnemy() {
   return 1;
 }
 
-function spawnTank(x) {
-  const w = 52 * S, h = 79 * S;
+// Ground units, all kept in `tanks`. Over the sea boats patrol instead (see BOATS). Outposts
+// ('outpost<bg>', see OUTPOSTS) are big bases that sit still and lob a lazy missile now and then.
+//   [width, height, base health, seconds before the first shot]
+const GROUND = {
+  tank: [52, 79, 3, 0.8]
+};
+
+// Boats, cut from boats.png (assets/boats/make-sheet.py packs it; the table below must match).
+// Each hull is drawn bare and its guns are sprites that turn on their mounts. A main gun lobs a
+// slow iron cannonball, an AA gun spits quick small shots; the guns take turns. Mounts are
+// [x, y] fractions of the hull size from its centre, gun sizes are fractions of the hull width.
+//   The patrol boat is the common one; the destroyer turns up later and takes real punishment.
+const BOATS = {
+  ship:      { w: 44, hp: 5,  fire: 1.4, score: 35, mainSize: 0.71, aaSize: 0.57,
+               main: [[0, -0.233]], aa: [[0, 0.27]] },
+  destroyer: { w: 58, hp: 12, fire: 1.6, score: 80, mainSize: 0.87, aaSize: 0.46,
+               main: [[0, -0.261], [0, 0.21]], aa: [[-0.316, 0.08], [0.293, 0.08]] }
+};
+//   [x, y, width, height] in boats.png; the wakes are [x, y, frame width, height, frame count]
+const BOAT_SHEET = {
+  ship:           [1422, 0, 63, 195],   ship_dmg:      [1489, 0, 63, 195],
+  destroyer:      [1240, 0, 87, 355],   destroyer_dmg: [1331, 0, 87, 355],
+  gunMain:        [1556, 0, 76, 76],    gunAA:         [1556, 80, 40, 40],
+  wake_ship:      [0, 540, 154, 316, 6],
+  wake_destroyer: [0, 0, 206, 536, 6]
+};
+const isBoat = t => t.kind in BOATS;
+
+function spawnTank(x, kind) {
+  kind = kind || 'tank';
+  let w, h, hp, fire;
+  let guns = null;
+  if (isOutpost({ kind })) { // sized from its picture, which differs per background
+    const spr = SPR[kind];
+    w = OUTPOSTS[kind.slice(7)][1] * S;
+    h = spr ? w * spr.height / spr.width : w;
+    hp = 14; fire = 2.2;
+  } else if (kind in BOATS) { // sized from its hull picture
+    const B = BOATS[kind], fr = BOAT_SHEET[kind];
+    w = B.w * S; h = w * fr[3] / fr[2];
+    hp = B.hp; fire = B.fire;
+    guns = [];
+    for (const [gx, gy] of B.main) guns.push({ x: gx, y: gy, a: Math.PI / 2, main: true });
+    for (const [gx, gy] of B.aa) guns.push({ x: gx, y: gy, a: Math.PI / 2, main: false });
+  } else {
+    [w, h, hp, fire] = GROUND[kind];
+    w *= S; h *= S;
+  }
+  hp += Math.min(4, Math.floor(elapsed / 100));
   tanks.push({
+    kind,
     x: x === undefined ? rand(w / 2, Math.max(w / 2, W - w / 2)) : clamp(x, w / 2, W - w / 2),
     y: -h / 2, w, h,
-    hp: 3 + Math.min(4, Math.floor(elapsed / 100)),
-    turret: Math.PI / 2,
-    fire: 0.8,
+    hp, hp0: hp,
+    turret: Math.PI / 2, guns,
+    fire, gun: 0, t: rand(0, TAU),
     flash: 0,
     dead: false
   });
+}
+
+const isOutpost = t => t.kind.startsWith('outpost');
+
+// An outpost missile: slower, lazier and shorter-lived than a boss missile, and it only bruises.
+function launchOutpostMissile(t) {
+  if (enemies.length > 18) return;
+  const e = makeEnemy('missile', t.x, t.y - t.h * 0.2, 14 * S);
+  e.a = aimAtPlayer(t.x, t.y);
+  e.speed *= 0.7;
+  e.turn = 1.5;
+  e.life = 4;
+  e.light = true;
+  enemies.push(e);
+  smoke(t.x, t.y, 12 * S, 0.7);
+  sparks(t.x, t.y - t.h * 0.2, 5, '#ffd27a', 140 * S);
+  playSfx(SFX.missile);
 }
 
 function spawnPickup(kind, x, y) {
@@ -2067,6 +2279,7 @@ function updateSpawns(dt) {
         const def = BOSSES[bossIndex % BOSSES.length];
         warning = { t: 2.4 };
         showBanner('WARNING', bossName(def, bossIndex) + ' APPROACHING', '#ff5252', 2.4);
+        playSfx(SFX.alarm);
         cloudFront();
         spawnPickup('weapon', rand(30, W - 30), -30); // a supply drop for the fight ahead
       }
@@ -2082,8 +2295,18 @@ function updateSpawns(dt) {
 
   tankTimer -= dt;
   if (tankTimer <= 0) {
-    if (!(boss && boss.def.ground)) spawnTank();
+    if (!(boss && boss.def.ground)) {
+      const sea = elapsed > 45 && Math.random() < 0.3 ? 'destroyer' : 'ship'; // destroyers come later, and rarely
+      spawnTank(undefined, atSea() ? sea : 'tank');
+    }
     tankTimer = D.tankEvery * rand(0.8, 1.2) * (boss ? 1.8 : 1);
+  }
+
+  outpostTimer -= dt; // at most two at a time, never during a boss
+  if (outpostTimer <= 0) {
+    outpostTimer = rand(10, 18);
+    const key = 'outpost' + bgIndex;
+    if (!boss && SPR[key] && tanks.filter(isOutpost).length < 2) spawnTank(undefined, key);
   }
 
   weaponDropTimer -= dt;
@@ -2131,7 +2354,7 @@ function killEnemy(e) {
   kills++;
   addScore(e.score);
   explode(e.x, e.y, Math.max(e.w, e.h) * (e.kind === 'bomber' ? 1.2 : 1.5));
-  playSfx(SFX.boom, 90);
+  playSfx(e.maxHp >= 4 ? SFX.boomM : SFX.boomS, 90);
   if (e.kind === 'bomber') {           // usually a star for taking down the big one, rarely a crate
     const roll = Math.random();
     if (roll < 0.55) spawnPickup('star', e.x, e.y);
@@ -2153,18 +2376,18 @@ function launchMissiles(b, count) {
     enemies.push(e);
     sparks(e.x, e.y, 4, '#ffd27a', 120 * S);
   }
-  playSfx(SFX.shoot2);
+  playSfx(SFX.missile);
 }
 
 // Fires `count` aimed shots in quick succession, then waits `gap` seconds before the next burst.
-function burstFire(e, dt, count, step, gap, color, speed) {
+function burstFire(e, dt, count, step, gap, color, speed, dmg) {
   if (e.burst > 0) {
     e.burstCd -= dt;
     if (e.burstCd <= 0) {
       e.burstCd = step;
       e.burst--;
       const y = e.y + e.h * 0.2;
-      fireShot(e.x, y, aimAtPlayer(e.x, y), speed * S * D.shotSpeed, 6 * S, color, 1);
+      fireShot(e.x, y, aimAtPlayer(e.x, y), speed * S * D.shotSpeed, 6 * S, color, dmg || 1);
     }
     return;
   }
@@ -2193,10 +2416,16 @@ function updateEnemies(dt) {
     } else if (e.kind === 'heli') {
       e.rotor += dt * 36;
       if (e.hover > 0 && e.y >= e.hoverY) { // holds position, drifting a little
+        if (e.hoverT < 0) { // just arrived: the drift starts from where it is, so there is no jump
+          e.hoverT = 0;
+          e.baseX = e.x;
+          e.amp = Math.min(50 * S, e.x - e.w * 0.6, W - e.w * 0.6 - e.x); // never past the screen edge
+        }
         e.y = e.hoverY;
         e.vy = 0;
         e.hover -= dt;
-        e.x = e.baseX + Math.sin(e.t * e.drift) * 50 * S;
+        e.hoverT += dt;
+        e.x = e.baseX + Math.sin(e.hoverT * e.drift) * Math.max(0, e.amp);
       } else if (e.hover <= 0) {
         e.vy = Math.min(e.vy + 320 * S * dt, 280 * S); // then dives on past
       }
@@ -2217,17 +2446,19 @@ function updateEnemies(dt) {
     const onScreen = e.x > 0 && e.x < W && e.y > 0 && e.y < H * 0.72;
     if (p.alive && onScreen) {
       if (e.kind === 'heli') {
-        burstFire(e, dt, 3, 0.12, rand(1.8, 2.6), 'flame', 280);
+        burstFire(e, dt, 3, 0.12, rand(1.8, 2.6), 'flame', 280, 0.5); // half damage: a nuisance, not a killer
       } else if (e.kind === 'interceptor') {
         e.fire -= dt;
         if (e.fire <= 0) {
           fireShot(e.x, e.y + e.h * 0.3, Math.PI / 2, 360 * S * D.shotSpeed, 6 * S, 'laser', 1);
+          playSfx(SFX.laser, 150);
           e.fire = rand(0.35, 0.6) * D.cooldown;
         }
       } else if (e.kind === 'bomber') {
         e.fire -= dt;
         if (e.fire <= 0 && e.y < H * 0.55) {
           dropBomb(e.x + rand(-0.45, 0.45) * e.w, e.y + e.h * 0.2);
+          playSfx(SFX.bomb, 700);
           e.fire = rand(1.4, 2.4) * D.cooldown;
         }
       } else if (e.kind === 'grunt' || e.kind === 'weaver' || e.kind === 'sniper') {
@@ -2259,8 +2490,8 @@ function updateEnemies(dt) {
       e.dead = true;
     } else if (p.alive && hitRects(e.x, e.y, e.w * 0.32, e.h * 0.36, p.x, p.y, p.w * PLAYER_HW, p.h * PLAYER_HH)) {
       e.dead = true;
-      explode(e.x, e.y, Math.max(e.w, e.h) * 1.2);
-      playSfx(SFX.boom, 90);
+      explode(e.x, e.y, Math.max(e.w, e.h) * (e.light ? 0.7 : 1.2));
+      playSfx(SFX.boomS, 90);
       damagePlayer(e.kind === 'missile' ? 1 : 2);
     }
   }
@@ -2270,6 +2501,48 @@ function updateTanks(dt) {
   const p = player;
   for (const t of tanks) {
     t.flash = Math.max(0, t.flash - dt);
+    if (isBoat(t)) {
+      t.t += dt;
+      t.y += D.scroll * 0.8 * dt;               // sailing against the scroll, so it lags the water a little
+      t.x += Math.sin(t.t * 0.7) * 12 * S * dt; // a gentle roll
+      for (const g of t.guns) { // the small AA mounts swing round faster than the big guns
+        g.a = turnToward(g.a, aimAtPlayer(t.x + g.x * t.w, t.y + g.y * t.h), (g.main ? 2.4 : 4) * dt);
+      }
+      if (p.alive && t.y > 0 && t.y < H * 0.85) {
+        t.fire -= dt;
+        if (t.fire <= 0) { // the guns take turns
+          const g = t.guns[t.gun];
+          const reach = t.w * (g.main ? 0.5 : 0.3); // barrel length, so the shot leaves the muzzle
+          const mx = t.x + g.x * t.w + Math.cos(g.a) * reach, my = t.y + g.y * t.h + Math.sin(g.a) * reach;
+          if (g.main) {
+            fireShot(mx, my, g.a, 240 * S * (1 + Math.min(elapsed / 400, 0.4)), 8 * S, 'ball', 1);
+            sparks(mx, my, 4, '#ffe14d', 120 * S);
+            playSfx(SFX.cannon, 150);
+          } else {
+            fireShot(mx, my, g.a, 340 * S, 4.5 * S, 'ball', 1);
+            sparks(mx, my, 2, '#ffe14d', 80 * S);
+            playSfx(SFX.mg, 90);
+          }
+          t.gun = (t.gun + 1) % t.guns.length;
+          const next = t.guns[t.gun];
+          t.fire = Math.max(0.9, 1.7 - elapsed / 300) * (next.main ? 1 : 0.5);
+        }
+      }
+      if (t.y - t.h / 2 > H) t.dead = true;
+      continue;
+    }
+    if (isOutpost(t)) {
+      t.y += D.scroll * dt;
+      if (p.alive && t.y > t.h / 2 && t.y < H * 0.8) {
+        t.fire -= dt;
+        if (t.fire <= 0) {
+          launchOutpostMissile(t);
+          t.fire = rand(3, 4.5);
+        }
+      }
+      if (t.y - t.h / 2 > H) t.dead = true;
+      continue;
+    }
     t.y += D.scroll * dt; // tanks sit on the ground, so they move with it
     t.turret = turnToward(t.turret, aimAtPlayer(t.x, t.y), 3 * dt);
     if (p.alive && t.y > 0 && t.y < H * 0.85) {
@@ -2278,6 +2551,7 @@ function updateTanks(dt) {
         const reach = t.w * 0.9;
         const speed = 330 * S * (1 + Math.min(elapsed / 400, 0.5));
         fireShot(t.x + Math.cos(t.turret) * reach, t.y + Math.sin(t.turret) * reach, t.turret, speed, 6 * S, 'red', 1);
+        playSfx(SFX.cannon, 200);
         t.fire = Math.max(0.8, 1.6 - elapsed / 300);
       }
     }
@@ -2403,6 +2677,7 @@ function drawClouds(layer) {
 }
 
 function spawnBoss() {
+  switchMusic('boss');
   const def = BOSSES[bossIndex % BOSSES.length];
   const tier = Math.floor(bossIndex / BOSSES.length);
   const w = def.w * S, h = def.h * S;
@@ -2420,7 +2695,7 @@ function spawnBoss() {
     shot: 1 + tier * 0.12,              // bullet speed multiplier
     a: 1.2, b: 2.5, c: 5,               // attack timers
     spin: 0, burst: 0, burstCd: 0, m: 4,
-    turret: Math.PI / 2,
+    turret: Math.PI / 2, rotor: 0,
     laser: null,
     phase: 1, enraged: false,
     flash: 0, dieT: 0, boomCd: 0
@@ -2514,6 +2789,7 @@ const BOSS_AI = {
         fireShot(b.x + Math.cos(b.turret) * reach, b.y + Math.sin(b.turret) * reach, a, 360 * S * b.shot, 10 * S, 'shell', 2);
       }
       sparks(b.x + Math.cos(b.turret) * reach, b.y + Math.sin(b.turret) * reach, 5, '#ffe14d', 160 * S);
+      playSfx(SFX.cannon);
     }
     b.b -= dt;
     if (b.b <= 0) {
@@ -2524,6 +2800,56 @@ const BOSS_AI = {
     if (b.c <= 0) {
       b.c = 6 * cd;
       if (tanks.length < 4) spawnTank(rand(0, W));
+    }
+  },
+
+  // Helicopter gunship: sweeps the top of the screen with minigun bursts and rocket pods, and
+  // every so often drops into a low strafing pass before climbing back.
+  gunship(b, dt, cd) {
+    if (b.sub === 'pass') {
+      b.subT -= dt;
+      b.y = Math.min(b.y + 260 * S * dt, b.homeY + H * 0.28);
+      b.burstCd -= dt;
+      if (b.burstCd <= 0) {
+        b.burstCd = 0.2;
+        fireFan(b.x, b.y + b.h * 0.3, Math.PI / 2, 5, 0.9, 230 * S * b.shot, 'orange');
+      }
+      if (b.subT <= 0) b.sub = 'climb';
+      return;
+    }
+    if (b.sub === 'climb') {
+      b.y -= 300 * S * dt;
+      if (b.y <= b.homeY) { b.y = b.homeY; b.sub = null; }
+      return;
+    }
+    sweepBoss(b, 85 * S, dt);
+    const y = b.y + b.h * 0.3;
+    b.a -= dt;
+    if (b.a <= 0) {
+      b.a = 2.4 * cd;
+      b.burst = b.enraged ? 8 : 6;
+      b.burstCd = 0;
+    }
+    if (b.burst > 0) { // minigun: a fast burst that alternates sides and scatters a little
+      b.burstCd -= dt;
+      if (b.burstCd <= 0) {
+        b.burstCd = 0.09;
+        b.burst--;
+        const gx = b.x + (b.burst % 2 ? -1 : 1) * b.w * 0.3;
+        fireShot(gx, y, aimAtPlayer(gx, y) + rand(-0.08, 0.08), 320 * S * b.shot, 6 * S, 'flame', 1);
+      }
+    }
+    b.b -= dt;
+    if (b.b <= 0) {
+      b.b = (b.enraged ? 3.5 : 5) * cd;
+      launchMissiles(b, 2);
+    }
+    b.c -= dt;
+    if (b.c <= 0) {
+      b.c = 8 * cd;
+      b.sub = 'pass';
+      b.subT = 1.6;
+      b.burstCd = 0;
     }
   },
 
@@ -2642,7 +2968,9 @@ function damageBoss(b, amount) {
 
 function finishBoss(b) {
   explode(b.x, b.y, Math.max(b.w, b.h) * 1.7, true);
-  playSfx(SFX.bigBoom);
+  playSfx(SFX.boomL);
+  playSfx(SFX.jingleVictory);
+  switchMusic('game');
   shake = 18;
   spawnPickup('health', b.x - 34 * S, b.y);
   spawnPickup('weapon', b.x + 34 * S, b.y);
@@ -2660,6 +2988,7 @@ function unlockPlane(index) {
   writeStore('planeCrashUnlocked', String(unlockedPlanes));
   refreshShopUi(); // the offer strip lists what is still locked
   unlockedThisRun = PLANES[index].name;
+  playSfx(SFX.extraLife);
   showBanner('NEW PLANE UNLOCKED', PLANES[index].name, '#32e0ff', 2.6);
 }
 
@@ -2675,6 +3004,7 @@ function updateBoss(dt) {
   const b = boss;
   if (!b) return;
   b.flash = Math.max(0, b.flash - dt);
+  if (b.def.heli) b.rotor += dt * (b.enraged ? 44 : 34); // keeps turning while entering and dying too
 
   if (b.mode === 'enter') {
     b.y = Math.min(b.homeY, b.y + 150 * S * dt);
@@ -2687,7 +3017,7 @@ function updateBoss(dt) {
     if (b.boomCd <= 0) {
       b.boomCd = 0.12;
       explode(b.x + rand(-0.4, 0.4) * b.w, b.y + rand(-0.35, 0.35) * b.h, b.w * rand(0.4, 0.8));
-      playSfx(SFX.boom, 90);
+      playSfx(SFX.boomS, 90);
     }
     if (b.dieT <= 0) finishBoss(b);
     return;
@@ -2728,6 +3058,7 @@ function updateBullets(dt) {
       e.hp -= dmg;
       e.flash = 0.07;
       if (e.hp <= 0) killEnemy(e);
+      else playSfx(SFX.hit, 70);
       break;
     }
     if (s.dead) { bulletHit(s); continue; }
@@ -2740,9 +3071,19 @@ function updateBullets(dt) {
       if (t.hp <= 0) {
         t.dead = true;
         kills++;
-        addScore(20);
-        explode(t.x, t.y, t.h * 1.4);
-        playSfx(SFX.boom, 90);
+        addScore(isBoat(t) ? BOATS[t.kind].score : isOutpost(t) ? 50 : 20);
+        if (isOutpost(t) && Math.random() < 0.5) spawnPickup('star', t.x, t.y);
+        if (t.kind === 'destroyer') { // long hull: it goes up bow and stern, and usually drops a star
+          explode(t.x, t.y - t.h * 0.25, t.w * 3);
+          explode(t.x, t.y + t.h * 0.25, t.w * 3);
+          if (Math.random() < 0.6) spawnPickup('star', t.x, t.y);
+          playSfx(SFX.boomL);
+        } else {
+          explode(t.x, t.y, Math.min(t.h, t.w * 2.6) * 1.4);
+          playSfx(SFX.boomM, 90);
+        }
+      } else {
+        playSfx(SFX.hit, 70);
       }
       break;
     }
@@ -2751,6 +3092,7 @@ function updateBullets(dt) {
     if (b && b.mode === 'fight' && hitRects(s.x, s.y, hw, hh, b.x, b.y, b.w * b.def.hbw, b.h * b.def.hbh)) {
       s.dead = true;
       bulletHit(s);
+      playSfx(SFX.hit, 90);
       damageBoss(b, dmg);
     }
   }
@@ -2831,6 +3173,7 @@ function updatePickups(dt) {
     } else if (p.alive && hitCircleRect(k.x, k.y, k.r, p.x, p.y, p.w * 0.4, p.h * 0.4)) {
       k.dead = true;
       if (k.kind === 'weapon') {
+        playSfx(SFX.powerup);
         if (p.weapon < 3) {
           p.weapon++;
           floatText(p.x, p.y - p.h * 0.6, p.weapon === 2 ? 'TWIN CANNONS' : 'SPREAD SHOT', '#32e0ff');
@@ -2842,13 +3185,16 @@ function updatePickups(dt) {
       } else if (k.kind === 'star') {
         const bonus = Math.round(100 * (1 + (level - 1) * 0.15) * (perk('score') || 1) / 5) * 5;
         score += bonus;
+        playSfx(SFX.star);
         floatText(p.x, p.y - p.h * 0.6, '\u2605 +' + bonus, '#ffd60a');
       } else if (p.hp < p.maxHp) {
         p.hp = Math.min(p.maxHp, p.hp + 2);
+        playSfx(SFX.health);
         floatText(p.x, p.y - p.h * 0.6, '+2 HEALTH', '#4cd964');
       } else {
         const bonus = Math.round(50 * (perk('score') || 1));
         score += bonus;
+        playSfx(SFX.star);
         floatText(p.x, p.y - p.h * 0.6, '+' + bonus, '#ffd60a');
       }
       sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : k.kind === 'star' ? '#ffd60a' : '#4cd964', 200 * S);
@@ -3008,7 +3354,7 @@ function drawEnemy(e) {
   } else {
     drawSprite(e.sprite, e.x, e.y, e.w, e.h, e.flash);
     if (e.kind === 'heli' && SPR.rotor) { // the rotor disc spins, and the blades flicker as they pass
-      const spr = Math.floor(e.rotor * 1.5) % 2 ? SPR.rotor2 : SPR.rotor;
+      const spr = Math.floor(clock * 24) % 2 ? SPR.rotor2 : SPR.rotor;
       const d = e.w * 1.6;
       ctx.save();
       ctx.translate(e.x, e.y + e.h * 0.12);
@@ -3025,10 +3371,18 @@ function drawEnemy(e) {
 function drawBullet(s) {
   const spr = SPR[s.key] || SPR.bolt_yellow;
   if (!spr) return;
-  if (!s.rot) { ctx.drawImage(spr, s.x - s.w / 2, s.y - s.h / 2, s.w, s.h); return; }
   ctx.save();
   ctx.translate(s.x, s.y);
-  ctx.rotate(s.rot);
+  if (s.rot) ctx.rotate(s.rot);
+  const glow = SPR[s.key + '_g'];
+  if (glow) { // neon halo, added to whatever is underneath so it reads on any background
+    const gw = s.w * glow.width / spr.width, gh = s.h * glow.height / spr.height;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(glow, -gw / 2, -gh / 2, gw, gh);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
   ctx.drawImage(spr, -s.w / 2, -s.h / 2, s.w, s.h);
   if (s.homing && SPR.thrusterB) ctx.drawImage(SPR.thrusterB, -3 * S, s.h / 2 - 2 * S, 6 * S, 10 * S);
   ctx.restore();
@@ -3069,6 +3423,36 @@ function drawTurret(spr, x, y, bodyW, angle) {
   ctx.restore();
 }
 
+// A boat: its wake (an animated strip, top edge on the bow so the foam trails off the stern), the
+// hull, swapped for the scorched one once it is badly hurt, then each gun turned to its aim.
+function drawBoat(t) {
+  const B = BOATS[t.kind];
+  const frames = SPR['wake_' + t.kind];
+  if (frames) {
+    const f = frames[Math.floor(t.t * 8) % frames.length];
+    const [, , fw, fh] = BOAT_SHEET['wake_' + t.kind], [, , bw, bh] = BOAT_SHEET[t.kind];
+    const w = t.w * fw / bw, h = t.h * fh / bh;
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(f, t.x - w / 2, t.y - t.h / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
+  const hurt = t.hp <= t.hp0 * 0.4 && SPR[t.kind + '_dmg'];
+  drawSprite(hurt ? t.kind + '_dmg' : t.kind, t.x, t.y, t.w, t.h, t.flash);
+  for (const g of t.guns) {
+    drawGun(g.main ? SPR.gunMain : SPR.gunAA, t.x + g.x * t.w, t.y + g.y * t.h, t.w * (g.main ? B.mainSize : B.aaSize), g.a);
+  }
+}
+
+// A boat gun sprite is drawn barrels-up and turns about its own centre.
+function drawGun(spr, x, y, size, angle) {
+  if (!spr) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI / 2);
+  ctx.drawImage(spr, -size / 2, -size / 2, size, size);
+  ctx.restore();
+}
+
 function drawSmallBar(x, y, w, frac) {
   ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
   ctx.fillRect(x - w / 2, y, w, 4);
@@ -3093,6 +3477,17 @@ function drawAirBoss(b) {
     ctx.fillRect(b.x - b.w * 0.36, b.y, b.w * 0.72, H - b.y);
   }
   drawSprite(b.def.id, x, y, b.w, b.h, b.flash);
+  if (b.def.heli && SPR.rotor) { // the big rotor, same flicker trick as the small helicopters
+    const spr = Math.floor(clock * 24) % 2 ? SPR.rotor2 : SPR.rotor;
+    const d = b.w * 1.75;
+    ctx.save();
+    ctx.translate(x, y + b.h * 0.12);
+    ctx.rotate(b.rotor);
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(spr, -d / 2, -d / 2, d, d);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
   if (b.enraged && b.mode === 'fight' && SPR[b.def.id + '_w']) {
     ctx.globalAlpha = 0.1 + 0.08 * Math.sin(clock * 12);
     ctx.drawImage(SPR[b.def.id + '_w'], x - b.w / 2, y - b.h / 2, b.w, b.h);
@@ -3253,8 +3648,14 @@ function render() {
 
   // ground layer
   for (const t of tanks) {
-    drawSprite('tank', t.x, t.y, t.w, t.h, t.flash);
-    drawTurret(SPR.turret, t.x, t.y, t.w, t.turret);
+    if (isBoat(t)) {
+      drawBoat(t);
+    } else if (isOutpost(t)) {
+      drawSprite(t.kind, t.x, t.y, t.w, t.h, t.flash);
+    } else {
+      drawSprite('tank', t.x, t.y, t.w, t.h, t.flash);
+      drawTurret(SPR.turret, t.x, t.y, t.w, t.turret);
+    }
   }
   if (boss && boss.def.ground) drawGroundBoss(boss);
 
@@ -3446,8 +3847,8 @@ function startGame() {
   resetGame();
   state = 'playing';
   unlockAudio();
-  music.currentTime = 0;
-  playMusic();
+  playSfx(SFX.jingleStart);
+  switchMusic('game', true);
   startLoop();
 }
 
@@ -3456,7 +3857,8 @@ function pauseGame() {
   state = 'paused';
   drag = null;
   keys.clear();
-  music.pause();
+  pauseMusic();
+  playSfx(SFX.uiPause);
   pauseScreen.classList.remove('hidden');
 }
 
@@ -3464,6 +3866,7 @@ function resumeGame() {
   if (state !== 'paused') return;
   state = 'playing';
   pauseScreen.classList.add('hidden');
+  playSfx(SFX.uiPause);
   playMusic();
   startLoop();
 }
@@ -3553,7 +3956,7 @@ function closeHistory() {
 // Leave the game. The hosting page is told first so it can decide where to go;
 // if nobody is listening, fall back to the browser history.
 function exitGame() {
-  music.pause();
+  pauseMusic();
   let told = false;
   try {
     if (window.parent && window.parent !== window) {
@@ -3578,7 +3981,7 @@ function exitToMenu() {
   boss = null;
   drag = null;
   keys.clear();
-  music.pause();
+  switchMusic('menu');
   pauseScreen.classList.add('hidden');
   overScreen.classList.add('hidden');
   hud.classList.add('hidden');
@@ -3602,7 +4005,8 @@ function saveRun() {
 
 function gameOver() {
   state = 'over';
-  music.pause();
+  switchMusic(null);
+  playSfx(SFX.jingleOver);
   const isBest = saveRun();
   finalScoreEl.textContent = 'Your Score: ' + score;
   finalStatsEl.textContent = 'Survived ' + formatTime(elapsed) + '  ·  Level ' + level +
@@ -3641,7 +4045,8 @@ function revivePlayer() {
   overScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   state = 'playing';
-  playMusic();
+  playSfx(SFX.extraLife);
+  switchMusic(boss ? 'boss' : 'game');
   startLoop();
 }
 
@@ -3943,6 +4348,19 @@ payPhone.addEventListener('keydown', e => { if (e.key === 'Enter') sendOtp(); })
 payOtp.addEventListener('keydown', e => { if (e.key === 'Enter') confirmOtp(); });
 payOtp.addEventListener('input', () => { payOtp.value = payOtp.value.replace(/\D/g, '').slice(0, 6); });
 payPhone.addEventListener('input', () => { payPhone.value = payPhone.value.replace(/[^\d+\s\-()]/g, ''); });
+
+// Every button clicks; a few have a sound of their own. Pause and resume play theirs in pauseGame/resumeGame.
+const UI_SOUNDS = {
+  startBtn: 'uiSelect', playBtn: 'uiSelect', retryBtn: 'uiSelect',
+  backBtn: 'uiBack', overMenuBtn: 'uiBack', menuBtn: 'uiBack', historyBackBtn: 'uiBack', profileBackBtn: 'uiBack', shopBackBtn: 'uiBack',
+  pauseBtn: null, resumeBtn: null, muteBtn: null
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  const key = b.id in UI_SOUNDS ? UI_SOUNDS[b.id] : 'uiClick';
+  if (key) playSfx(SFX[key]);
+});
 
 playBtn.addEventListener('click', () => openPlanePicker(startScreen));
 $('startBtn').addEventListener('click', startGame);
