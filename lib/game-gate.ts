@@ -1,9 +1,10 @@
 // The game lives in /game, outside /public, so Next.js never serves it as a static file.
 // Everything here decides who may fetch those files through the /play routes.
-import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { NextRequest } from "next/server";
+import { safeEqual, sign } from "./signing";
 
 export const SESSION_COOKIE = "pc_session";
 const SESSION_SECONDS = 12 * 60 * 60;
@@ -17,10 +18,16 @@ type FileKind = "frame" | "image" | "audio";
 // which also rules out path tricks like "../".
 const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "index.html": { type: "text/html; charset=utf-8", kind: "frame" },
+  "atlas.png": { type: "image/png", kind: "image" },
   "bg-sprite.png": { type: "image/png", kind: "image" },
   "bg-sprite-1.png": { type: "image/png", kind: "image" },
   "bg-sprite-2.png": { type: "image/png", kind: "image" },
+  "bg-sprite-3.png": { type: "image/png", kind: "image" },
+  "bg-sprite-3-outpost.png": { type: "image/png", kind: "image" },
+  "boats.png": { type: "image/png", kind: "image" },
   "boss.png": { type: "image/png", kind: "image" },
+  "boss-plane-1.png": { type: "image/png", kind: "image" },
+  "cloud.png": { type: "image/png", kind: "image" },
   "enemy-plane-1.png": { type: "image/png", kind: "image" },
   "enemy-plane-2.png": { type: "image/png", kind: "image" },
   "enemy-plane-3.png": { type: "image/png", kind: "image" },
@@ -33,47 +40,40 @@ const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "powerup.png": { type: "image/png", kind: "image" },
   "tank-barrel.png": { type: "image/png", kind: "image" },
   "tank-body.png": { type: "image/png", kind: "image" },
-  "background.mp3": { type: "audio/mpeg", kind: "audio" },
-  "dead.mp3": { type: "audio/mpeg", kind: "audio" },
-  "shoot.mp3": { type: "audio/mpeg", kind: "audio" },
-  "shoot2.mp3": { type: "audio/mpeg", kind: "audio" },
-  "mixkit-fire-explosion-1343.wav": { type: "audio/wav", kind: "audio" },
+  "music-menu.mp3": { type: "audio/mpeg", kind: "audio" },
+  "music-game.mp3": { type: "audio/mpeg", kind: "audio" },
+  "music-boss.mp3": { type: "audio/mpeg", kind: "audio" },
+  "jingle-start.mp3": { type: "audio/mpeg", kind: "audio" },
+  "jingle-victory.mp3": { type: "audio/mpeg", kind: "audio" },
+  "jingle-over.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-mg1.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-mg2.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-mg3.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-plasma.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-laser.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-cannon.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-missile.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-bomb.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-boom-s.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-boom-m.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-boom-l.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-hit1.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-hit2.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-hurt.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-shield.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-pickup-health.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-pickup-powerup.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-pickup-star.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-extra-life.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-alarm.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-ui-click.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-ui-select.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-ui-back.mp3": { type: "audio/mpeg", kind: "audio" },
+  "sfx-ui-pause.mp3": { type: "audio/mpeg", kind: "audio" },
 };
 
-// ---------- Signing ----------
-const globalStore = globalThis as typeof globalThis & { __gameSecret?: Buffer };
-
-// Every server instance must sign with the same secret, or a session issued by
-// one instance is refused by the next (on Vercel that showed up as random 404s).
-function secret(): Buffer {
-  if (!globalStore.__gameSecret) {
-    const fromEnv = process.env.GAME_SECRET;
-    // Written into the server code by next.config.ts at build time, so all
-    // instances of one deployment share it without any setup.
-    const fromBuild = process.env.GAME_BUILD_SECRET;
-    if (fromEnv && fromEnv.length >= 32) {
-      globalStore.__gameSecret = Buffer.from(fromEnv);
-    } else if (fromBuild) {
-      globalStore.__gameSecret = Buffer.from(fromBuild);
-    } else {
-      console.warn("No game secret available; using a temporary one that only this process knows.");
-      globalStore.__gameSecret = randomBytes(32);
-    }
-  }
-  return globalStore.__gameSecret;
-}
-
-function sign(value: string): string {
-  return createHmac("sha256", secret()).update(value).digest("base64url");
-}
-
-function safeEqual(a: string, b: string): boolean {
-  const x = Buffer.from(a);
-  const y = Buffer.from(b);
-  return x.length === y.length && timingSafeEqual(x, y);
-}
-
 // ---------- Sessions ----------
+// Signing lives in lib/signing.ts, shared with the payment routes.
 export type Session = { id: string; expires: number };
 
 export function createSession(): Session {
@@ -190,10 +190,11 @@ export function notFound(): Response {
 
 const FRAME_HEADERS = {
   "Cache-Control": "no-store",
-  // the game is one self-contained page: inline code, its own images and sounds, nothing else
+  // the game is one self-contained page: inline code, its own images and sounds, and
+  // fetch() calls to this site's /api/payment routes for the shop
   "Content-Security-Policy":
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; " +
-    "media-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
+    "media-src 'self'; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'",
   "X-Frame-Options": "SAMEORIGIN",
   "Referrer-Policy": "same-origin",
 };

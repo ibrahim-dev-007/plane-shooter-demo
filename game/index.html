@@ -30,7 +30,7 @@
       user-select: none;
       -webkit-tap-highlight-color: transparent;
     }
-    canvas {
+    #game { /* the game canvas only; plane thumbnails are canvases too */
       position: fixed;
       top: 0;
       left: 0;
@@ -50,7 +50,9 @@
       background: radial-gradient(ellipse at center, rgba(78, 38, 110, 0.82), rgba(32, 12, 52, 0.92));
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      /* The panel centres itself with auto margins. justify-content: center would
+         push the top of a panel taller than the screen out of reach. */
+      justify-content: flex-start;
       align-items: center;
       text-align: center;
       z-index: 10;
@@ -60,6 +62,8 @@
     .panel {
       position: relative;
       box-sizing: border-box;
+      flex: none;
+      margin: auto 0;
       width: 100%;
       max-width: 340px;
       padding: 38px 22px 22px;
@@ -220,30 +224,39 @@
     .toggle.on .switch::after { left: 26px; }
     .toggle .state { font-size: 11px; color: #a08a68; letter-spacing: 1px; }
     .toggle.on .state { color: var(--green-d); }
-    /* Play history */
+    /* Play history: the panel grows to the screen and the list scrolls inside it,
+       so the Back button always stays in view. Two columns once there is room. */
+    #historyScreen .panel { max-height: 100%; }
     #historyList {
       width: 100%;
-      max-height: 46vh;
+      flex: 1 1 auto;
+      min-height: 110px;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
       gap: 8px;
       margin-top: 8px;
       padding: 2px;
       box-sizing: border-box;
     }
+    @media (min-width: 640px) {
+      #historyList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    #historyList .hint { grid-column: 1 / -1; }
     .run {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 8px 12px;
+      min-width: 0;
+      padding: 8px 10px;
       background: var(--cream-2);
       border: 3px solid var(--tan);
       border-radius: 14px;
       text-align: left;
     }
     .run.top { border-color: var(--yellow-d); background: #fff3cf; }
-    .run img { width: 40px; height: 40px; object-fit: contain; flex: none; }
+    .run img, .run canvas { width: 40px; height: 40px; object-fit: contain; flex: none; }
     .run .info { flex: 1; min-width: 0; }
     .run .plane-name { font-weight: 900; font-size: 15px; color: var(--ink); }
     .run .meta { font-size: 12px; font-weight: 700; color: var(--brown); }
@@ -261,6 +274,7 @@
       #planeList { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
     #planeList .plane {
+      position: relative; /* anchors the PRO ribbon */
       margin: 0;
       padding: 12px 8px 10px;
       font: inherit;
@@ -277,7 +291,8 @@
       gap: 6px;
       transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
     }
-    #planeList .plane img {
+    #planeList .plane img,
+    #planeList .plane canvas {
       width: 72px;
       height: 72px;
       object-fit: contain;
@@ -285,6 +300,170 @@
     }
     #planeList .plane .name { font-weight: 900; font-size: 15px; }
     #planeList .plane .status { font-size: 12px; font-weight: 700; color: var(--brown); }
+    #planeList .plane .perk { font-size: 11px; font-weight: 700; line-height: 1.3; color: var(--blue-d); }
+    /* Premium planes: gold rim, PRO ribbon, and a price pill until they are bought */
+    #planeList .plane.premium:not(.selected) {
+      border-color: var(--yellow-d);
+      background: #fff6d6;
+      box-shadow: 0 4px 0 var(--yellow-d);
+    }
+    #planeList .plane.premium.locked {
+      cursor: pointer;
+      background: #f6eedc;
+      border-color: #d9bf8a;
+      box-shadow: 0 4px 0 #d9bf8a;
+    }
+    #planeList .plane.premium.locked img,
+    #planeList .plane.premium.locked canvas { filter: grayscale(0.35) opacity(0.8); }
+    #planeList .plane.premium.locked .name { color: var(--ink); }
+    #planeList .plane .ribbon {
+      position: absolute;
+      top: -9px;
+      right: -9px;
+      padding: 2px 8px;
+      background: linear-gradient(var(--yellow), var(--yellow-d));
+      border: 2px solid var(--ink);
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+    #planeList .plane .buy {
+      margin-top: 2px;
+      padding: 4px 12px;
+      background: linear-gradient(var(--green), var(--green-d));
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+    }
+    /* The "unlock all standard planes" strip under the plane picker */
+    .offer {
+      display: flex;
+      flex-wrap: wrap; /* on narrow screens the price pill drops to its own line */
+      align-items: center;
+      gap: 8px 10px;
+      width: 100%;
+      max-width: 420px;
+      box-sizing: border-box;
+      margin: 12px 0 0;
+      padding: 8px 12px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 900;
+      color: var(--ink);
+      text-align: left;
+      background: linear-gradient(#fff8e0, #ffe9a8);
+      border: 3px solid var(--yellow-d);
+      border-radius: 14px;
+      box-shadow: 0 4px 0 var(--yellow-d);
+      cursor: pointer;
+      transition: transform 0.08s, box-shadow 0.08s;
+    }
+    .offer:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--yellow-d); }
+    .offer .ic { font-size: 26px; line-height: 1; }
+    .offer .txt { flex: 1 1 170px; min-width: 0; display: flex; flex-direction: column; }
+    .offer .sub { font-size: 11px; font-weight: 700; color: var(--brown); }
+    .offer .pill {
+      flex: none;
+      margin-left: auto;
+      padding: 6px 12px;
+      background: linear-gradient(var(--green), var(--green-d));
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      font-size: 13px;
+      color: #fff;
+      text-shadow: 0 1px 0 rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+    }
+    .shop-head {
+      grid-column: 1 / -1;
+      margin: 4px 0 -4px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #a08a68;
+    }
+    .item canvas { width: 48px; height: 48px; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.25)); }
+    /* Pilot profile */
+    .pilot-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+      margin: 0 0 8px;
+      padding: 7px 12px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      font: inherit;
+      color: var(--ink);
+      text-align: left;
+      cursor: pointer;
+    }
+    .pilot-chip .av { font-size: 30px; line-height: 1; }
+    .pilot-chip .txt { display: flex; flex-direction: column; min-width: 0; }
+    .pilot-chip .nm { font-weight: 900; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pilot-chip .rk { font-size: 12px; font-weight: 800; color: var(--blue-d); }
+    .pilot-chip .go { margin-left: auto; font-size: 12px; font-weight: 800; color: #a08a68; white-space: nowrap; }
+    .avatar-row { display: flex; align-items: center; gap: 12px; width: 100%; }
+    .avatar {
+      flex: none;
+      width: 72px;
+      height: 72px;
+      margin: 0;
+      padding: 0;
+      font: inherit;
+      font-size: 40px;
+      line-height: 1;
+      border-radius: 50%;
+      border: 3px solid var(--ink);
+      background: linear-gradient(#fff, #e8e0d0);
+      box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
+      cursor: pointer;
+    }
+    .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+    .who .field { max-width: none; margin: 0; padding: 8px 12px; font-size: 18px; letter-spacing: 0; text-align: left; }
+    .rank { padding-left: 4px; font-size: 13px; font-weight: 900; color: var(--blue-d); text-align: left; }
+    .rank small { font-size: 11px; font-weight: 700; color: #a08a68; }
+    .avatars { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+    .avatars button {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      margin: 0;
+      font-size: 26px;
+      line-height: 1;
+      border-radius: 12px;
+      border: 2px solid var(--tan);
+      background: var(--cream-2);
+      cursor: pointer;
+    }
+    .avatars button.on { border-color: var(--green-d); background: #e6f7d3; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+      margin-top: 12px;
+    }
+    .stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 4px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 12px;
+    }
+    .stat b { font-size: 18px; font-weight: 900; color: var(--ink); }
+    .stat span { font-size: 10px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: #a08a68; }
     #planeList .plane.selected {
       border-color: var(--green-d);
       background: #e6f7d3;
@@ -324,6 +503,144 @@
       box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
     }
     #hud button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--tan), 0 1px 0 3px var(--ink); }
+    /* Shop */
+    #shopList {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      width: 100%;
+      margin-top: 8px;
+    }
+    .item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 10px 8px 9px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      box-shadow: 0 3px 0 var(--tan);
+      text-align: center;
+    }
+    .item.owned { border-color: var(--green-d); background: #e6f7d3; box-shadow: 0 3px 0 var(--green-d); }
+    .item .icon { font-size: 30px; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.15)); }
+    .item .name { font-weight: 900; font-size: 14px; color: var(--ink); }
+    .item .desc { flex: 1; font-size: 11px; font-weight: 600; color: var(--brown); line-height: 1.35; }
+    .item .have { font-size: 12px; font-weight: 800; color: var(--yellow-d); }
+    .item .owned-tag { margin-top: 6px; padding: 7px 0 6px; font-weight: 900; font-size: 15px; color: var(--green-d); }
+    /* Shop buy buttons: the same compact pill as the plane picker, not the big 3D button */
+    .item .btn {
+      width: auto;
+      max-width: none;
+      margin-top: 6px;
+      padding: 7px 18px 6px;
+      font-size: 14px;
+      letter-spacing: 0;
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 2px 0 var(--ink);
+    }
+    .item .btn:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.35), 0 0 0 var(--ink);
+    }
+    /* Checkout popup: sits above whichever screen opened it */
+    .modal { z-index: 20; background: rgba(10, 4, 20, 0.72); }
+    .step { width: 100%; display: flex; flex-direction: column; align-items: center; }
+    .dots { display: flex; gap: 7px; justify-content: center; margin: 0 0 8px; }
+    .dots span {
+      width: 11px;
+      height: 11px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      background: #d9c7a3;
+      border: 2px solid var(--ink);
+    }
+    .dots span.on { background: var(--green); }
+    .summary {
+      width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 2px 0 6px;
+      padding: 10px 14px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 16px;
+      color: var(--ink);
+      text-align: left;
+    }
+    .summary .price { color: var(--yellow-d); font-size: 20px; white-space: nowrap; }
+    #payItem { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    #payItem canvas, #payItem img { width: 40px; height: 40px; flex: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25)); }
+    .field {
+      width: 100%;
+      max-width: 260px;
+      margin: 8px 0 0;
+      padding: 10px 14px;
+      box-sizing: border-box;
+      font: inherit;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-align: center;
+      color: var(--ink);
+      background: #fff;
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      box-shadow: inset 0 3px 4px rgba(0, 0, 0, 0.12);
+      outline: none;
+    }
+    .field:focus { border-color: var(--blue-d); }
+    .field.otp { letter-spacing: 8px; font-size: 26px; }
+    .field::placeholder { color: #b9ab93; letter-spacing: 0; font-size: 16px; font-weight: 700; }
+    .field.otp::placeholder { letter-spacing: 8px; font-size: 26px; }
+    .sms {
+      width: 100%;
+      max-width: 260px;
+      box-sizing: border-box;
+      margin: 10px 0 0;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--brown);
+      background: #e9f3ff;
+      border: 2px dashed var(--blue-d);
+      border-radius: 12px;
+    }
+    .sms b { color: var(--blue-d); font-size: 18px; letter-spacing: 3px; }
+    .error { min-height: 18px; margin: 6px 0 0; font-size: 14px; font-weight: 800; color: var(--red-d); }
+    .link {
+      margin: 12px 0 0;
+      padding: 0;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--blue-d);
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .spinner {
+      width: 54px;
+      height: 54px;
+      margin: 14px auto;
+      box-sizing: border-box;
+      border-radius: 50%;
+      border: 6px solid #d9c7a3;
+      border-top-color: var(--green-d);
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .check { font-size: 56px; line-height: 1; margin: 6px 0; }
+    .receipt { font-size: 12px; font-weight: 700; color: #a08a68; }
   </style>
 </head>
 <body>
@@ -349,6 +666,11 @@
     <div class="tab">Plane Shooter</div>
     <p class="hint">Drag anywhere to fly (or use the arrow keys / WASD). Your guns fire automatically.<br>
       The longer you survive, the harder it gets &mdash; and the bosses keep coming.</p>
+    <button id="profileBtn" class="pilot-chip" type="button">
+      <span id="chipAvatar" class="av"></span>
+      <span class="txt"><span id="chipName" class="nm"></span><span id="chipRank" class="rk"></span></span>
+      <span class="go">Profile &rsaquo;</span>
+    </button>
     <p id="startBest"></p>
     <div class="toggles">
       <button id="sfxToggle" class="toggle" type="button" aria-label="Toggle sound effects">
@@ -358,14 +680,48 @@
         <span class="icon">🎵</span>Music<span class="switch"></span><span class="state">ON</span>
       </button>
     </div>
+    
     <button id="playBtn" class="btn green" disabled>Loading&hellip;</button>
+    <button id="shopBtn" class="btn yellow">Shop</button>
     <button id="historyBtn" class="btn blue">History</button>
     <button id="exitBtn" class="btn red">Exit</button>
   </div>
 </div>
 
-<div id="historyScreen" class="overlay hidden">
+<div id="profileScreen" class="overlay hidden">
   <div class="panel">
+    <div class="tab">Pilot Profile</div>
+    <div class="avatar-row">
+      <button id="avatarBtn" class="avatar" type="button" aria-label="Change avatar"></button>
+      <div class="who">
+        <input id="pilotName" class="field" type="text" maxlength="16" autocomplete="off" placeholder="Pilot name">
+        <div id="pilotRank" class="rank"></div>
+      </div>
+    </div>
+    <div id="avatarPick" class="avatars hidden"></div>
+    <div class="stats">
+      <div class="stat"><b id="stGames">0</b><span>Games</span></div>
+      <div class="stat"><b id="stBest">0</b><span>Best score</span></div>
+      <div class="stat"><b id="stKills">0</b><span>Kills</span></div>
+      <div class="stat"><b id="stBosses">0</b><span>Bosses</span></div>
+      <div class="stat"><b id="stTime">0m</b><span>Time flown</span></div>
+      <div class="stat"><b id="stPlanes">0</b><span>Planes</span></div>
+    </div>
+    <button id="profileBackBtn" class="btn red small">Back</button>
+  </div>
+</div>
+
+<div id="shopScreen" class="overlay hidden">
+  <div class="panel wide">
+    <div class="tab">Shop</div>
+    <p class="hint">Upgrades are saved on this device.</p>
+    <div id="shopList"></div>
+    <button id="shopBackBtn" class="btn red small">Back</button>
+  </div>
+</div>
+
+<div id="historyScreen" class="overlay hidden">
+  <div class="panel wide">
     <div class="tab">History</div>
     <p id="historyBest" class="big"></p>
     <div id="historyList"></div>
@@ -376,8 +732,13 @@
 <div id="planeScreen" class="overlay hidden">
   <div class="panel wide">
     <div class="tab">Choose Plane</div>
-    <p class="hint">Defeat bosses to unlock more planes.</p>
+    <p class="hint">Defeat bosses to unlock more planes. PRO planes come with their own perks.</p>
     <div id="planeList"></div>
+    <button id="hangarBtn" class="offer hidden" type="button">
+      <span class="ic">&#x2708;&#xFE0F;</span>
+      <span class="txt">Unlock all standard planes<span id="hangarSub" class="sub"></span></span>
+      <span id="hangarPrice" class="pill"></span>
+    </button>
     <button id="startBtn" class="btn green">Start</button>
     <button id="backBtn" class="btn red small">Back</button>
   </div>
@@ -398,9 +759,58 @@
     <p id="finalStats"></p>
     <p id="finalBest"></p>
     <p id="finalUnlock" class="good hidden"></p>
+    <button id="continueBtn" class="btn yellow">Continue</button>
     <button id="retryBtn" class="btn green">Retry</button>
-    <button id="changePlaneBtn" class="btn yellow">Change Plane</button>
+    <button id="changePlaneBtn" class="btn blue">Change Plane</button>
     <button id="overMenuBtn" class="btn red">Main Menu</button>
+  </div>
+</div>
+
+<!-- Demo checkout: phone number, then a one-time code. No real money moves. -->
+<div id="payModal" class="overlay modal hidden">
+  <div class="panel">
+    <div class="tab">Checkout</div>
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="summary"><span id="payItem"></span><span id="payPrice" class="price"></span></div>
+
+    <div id="payPhoneStep" class="step">
+      <p class="hint">Enter the mobile wallet number to pay from. A one-time code will be sent to it.</p>
+      <input id="payPhone" class="field" type="tel" inputmode="numeric" autocomplete="tel" maxlength="16" placeholder="Mobile number">
+      <p id="payPhoneError" class="error"></p>
+      <button id="paySendBtn" class="btn green">Send OTP</button>
+      <button class="btn red small pay-cancel">Cancel</button>
+    </div>
+
+    <div id="payOtpStep" class="step hidden">
+      <p class="hint">Enter the 6-digit code sent to <b id="payPhoneShown"></b></p>
+      <div class="sms">📩 Demo SMS &mdash; your code is <b id="payDemoOtp"></b></div>
+      <input id="payOtp" class="field otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="------">
+      <p id="payOtpError" class="error"></p>
+      <button id="payConfirmBtn" class="btn green">Pay</button>
+      <button id="payChangeBtn" class="link" type="button">Change number</button>
+      <button class="btn red small pay-cancel">Cancel</button>
+    </div>
+
+    <div id="payBusyStep" class="step hidden">
+      <div class="spinner"></div>
+      <p id="payBusyText" class="hint">Contacting your wallet&hellip;</p>
+    </div>
+
+    <div id="payDoneStep" class="step hidden">
+      <div class="check">✅</div>
+      <p class="big good">Payment successful</p>
+      <p id="payDoneText" class="hint"></p>
+      <p id="payReceipt" class="receipt"></p>
+      <button id="payDoneBtn" class="btn green">Done</button>
+    </div>
+
+    <div id="payFailStep" class="step hidden">
+      <div class="check">⚠️</div>
+      <p class="big">Payment failed</p>
+      <p id="payFailText" class="hint"></p>
+      <button id="payRetryBtn" class="btn green">Try again</button>
+      <button class="btn red small pay-cancel">Close</button>
+    </div>
   </div>
 </div>
 
@@ -419,13 +829,15 @@ const ctx = canvas.getContext('2d');
 // ---------- Tuning ----------
 const FIRE_INTERVAL = 0.22;   // seconds between player shots
 const WEAPON_TIME = 15;       // seconds a weapon upgrade lasts
+const ROCKET_TIME = 10;       // seconds the rocket pods stay armed
+const ROCKET_GAP = 1.3;       // seconds between rockets (they alternate wings)
 const LEVEL_SECONDS = 25;     // the level shown in the HUD goes up this often
 const FIRST_BOSS_AT = 35;     // seconds until the first boss
 const BOSS_GAP = 30;          // seconds between a boss dying and the next one
 const MAX_SHOTS = 320;
 const MAX_PARTICLES = 260;
-const PLAYER_HW = 0.2;        // player hitbox half-size, as a fraction of the sprite
-const PLAYER_HH = 0.3;
+const PLAYER_HW = 0.176;      // player hitbox half-size, as a fraction of the sprite (the same
+const PLAYER_HH = 0.264;      // pixels as before the sprite grew from 88 to 100)
 
 // Everything that makes the game harder is derived from the seconds survived.
 function difficulty(t) {
@@ -443,18 +855,24 @@ function difficulty(t) {
 
 // Bosses come in this order, then the list repeats one tier stronger ("MK II", ...).
 const BOSSES = [
-  { id: 'viper',       name: 'VIPER',       w: 150, h: 153, hp: 60,  hbw: 0.36, hbh: 0.42, score: 500 },
+  { id: 'viper',       name: 'VIPER',       w: 200, h: 137, hp: 60,  hbw: 0.40, hbh: 0.38, score: 500 },
   { id: 'vulture',     name: 'VULTURE',     w: 200, h: 200, hp: 95,  hbw: 0.40, hbh: 0.36, score: 800 },
   { id: 'goliath',     name: 'GOLIATH',     w: 150, h: 229, hp: 140, hbw: 0.44, hbh: 0.45, score: 1200, ground: true },
+  { id: 'gunship',     name: 'GUNSHIP',     w: 150, h: 303, hp: 165, hbw: 0.34, hbh: 0.30, score: 1500, heli: true },
   { id: 'hive',        name: 'HIVE',        w: 240, h: 240, hp: 180, hbw: 0.40, hbh: 0.36, score: 1600 },
   { id: 'dreadnought', name: 'DREADNOUGHT', w: 280, h: 280, hp: 240, hbw: 0.40, hbh: 0.36, score: 2500 }
 ];
 
 const ENEMY_KINDS = {
-  grunt:    { sprite: 'enemy1',   score: 10 },  // flies straight, shoots straight
-  weaver:   { sprite: 'enemy2',   score: 15 },  // weaves side to side
-  sniper:   { sprite: 'enemy3',   score: 20 },  // aims at the player
-  kamikaze: { sprite: 'kamikaze', score: 15 }   // fast, steers into the player
+  grunt:       { sprite: 'enemy1',   score: 10 },  // flies straight, shoots straight
+  weaver:      { sprite: 'enemy2',   score: 15 },  // weaves side to side
+  sniper:      { sprite: 'enemy3',   score: 20 },  // aims at the player
+  kamikaze:    { sprite: 'kamikaze', score: 15 },  // fast, steers into the player
+  heli:        { sprites: ['heli1', 'heli2'], score: 30 },            // hovers, fires aimed bursts
+  interceptor: { sprites: ['jet1', 'jet2'], score: 25 },              // strafes across the screen
+  bomber:      { sprites: ['bomber'], score: 60 },                    // slow and tough, drops bombs
+  transport:   { sprites: ['transport1', 'transport2'], score: 40 },  // unarmed, carries supplies
+  missile:     { sprites: ['emissile'], score: 5 }                    // homing, launched by bosses
 };
 
 const SHOT_COLORS = {
@@ -462,7 +880,23 @@ const SHOT_COLORS = {
   red: '#ff3b30',
   magenta: '#ff4dff',
   green: '#7dff5a',
-  shell: '#ffe14d'
+  shell: '#ffe14d',
+  bomb: '#ffb020',
+  laser: '#ff3b3b',
+  flame: '#ff9a2e',
+  ball: '#aab4bf'
+};
+
+// How each shot colour is drawn from the atlas: [sprite, turns with its heading, width as a multiple of r].
+// A colour with no entry (or a sprite that failed to load) falls back to the plain orb of that colour.
+const SHOT_SPRITES = {
+  orange:  ['flame', true, 2.2],
+  magenta: ['orbPink', false, 2.6],
+  red:     ['orbRed', false, 3.2],
+  shell:   ['bomb', true, 2],
+  bomb:    ['bomb', true, 2],
+  laser:   ['laser', true, 1.6],
+  flame:   ['flame', true, 2]
 };
 
 // ---------- View ----------
@@ -479,7 +913,7 @@ function applyPlane() {
 
 // Planes have different shapes, so fit each inside the same square without stretching.
 function playerSize() {
-  const size = 88 * S;
+  const size = 100 * S;
   const spr = SPR['plane' + selectedPlane];
   const aspect = spr ? spr.width / spr.height : 1;
   return aspect >= 1 ? { w: size, h: size / aspect } : { w: size * aspect, h: size };
@@ -507,16 +941,41 @@ function resizeCanvas() {
 // ---------- Sprites ----------
 // The source PNGs are huge, so every sprite is downscaled once into a small canvas.
 const SPR = { bgs: [] };
-const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png'];
+const BG_FILES = ['./bg-sprite.png', './bg-sprite-1.png', './bg-sprite-2.png', './bg-sprite-3.png'];
+const SEA_BG = 3; // the ocean: gunboats patrol instead of tanks, and bombers stay away
+// Missile bases keyed by background index. Only the ocean (3) has one.
+//   [file, drawn width]
+const OUTPOSTS = {
+  3: ['./bg-sprite-3-outpost.png', 150]
+};
+const atSea = () => bgIndex === SEA_BG;
 const BG_FADE_TIME = 2.5; // seconds for a background cross-fade
 const BG_SWITCH_EVERY = 1; // bosses defeated per background change
-// Plane i unlocks once the player has defeated i bosses; the first is always available.
+// Standard plane i unlocks once the player has defeated i bosses; the first is always available.
+// PRO planes are bought in the shop. Each is one of the standard sprites recoloured, with a perk:
+//   hp     - max health multiplier
+//   fire   - rate of fire multiplier
+//   resist - fraction of every hit that is shrugged off
+//   magnet - pick-ups within this many px (scaled) drift toward the plane
+//   score  - score multiplier
 const PLANES = [
   { file: './my-plane.png', name: 'Falcon' },
   { file: './my-plane-1.png', name: 'Raptor' },
   { file: './my-plane-2.png', name: 'Hornet' },
-  { file: './my-plane-3.png', name: 'Phantom' }
+  { file: './my-plane-3.png', name: 'Phantom' },
+  { atlas: 'fighter',   name: 'Comet' },       // cut from atlas.png, see ATLAS
+  { atlas: 'attackJet', name: 'Thunderbolt' },
+  { name: 'Titan',   base: 3, tint: '#ffb300', alpha: 0.45, item: 'plane_titan',   price: 149,
+    perks: { hp: 1.25 },                   perk: '+25% health' },
+  { name: 'Striker', base: 1, tint: '#ff2d2d', alpha: 0.45, item: 'plane_striker', price: 149,
+    perks: { fire: 1.15 },                 perk: '+15% rate of fire' },
+  { name: 'Aegis',   base: 2, tint: '#2ee6ff', alpha: 0.45, item: 'plane_aegis',   price: 199,
+    perks: { resist: 0.15 },               perk: '15% less damage from every hit' },
+  { name: 'Wraith',  base: 0, tint: '#7b3fe4', alpha: 0.5,  item: 'plane_wraith',  price: 179,
+    perks: { magnet: 170, score: 1.05 },   perk: 'Pulls in pick-ups · +5% score' }
 ];
+for (const p of PLANES) if (p.base !== undefined) p.file = PLANES[p.base].file;
+const FREE_PLANES = PLANES.filter(p => !p.item).length;
 // Every image and sound registers here, and the loading bar fills as they settle.
 // The main menu only appears once all of them are in, so nothing stalls mid-game.
 let totalAssets = 0, loadedAssets = 0, loadingDone = false;
@@ -552,6 +1011,7 @@ function finishLoading() {
     loadScreen.classList.add('hidden');
     startScreen.classList.remove('hidden');
     renderIdle();
+    switchMusic('menu');
   }, 300);
 }
 
@@ -579,6 +1039,62 @@ function scaled(img, targetW) {
   g.imageSmoothingQuality = 'high';
   g.drawImage(src, 0, 0, out.width, out.height);
   return out;
+}
+
+function mirrored(src) {
+  const c = makeCanvas(src.width, src.height);
+  const g = c.getContext('2d');
+  g.translate(c.width, 0);
+  g.scale(-1, 1);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+
+function flippedV(src) {
+  const c = makeCanvas(src.width, src.height);
+  const g = c.getContext('2d');
+  g.translate(0, c.height);
+  g.scale(1, -1);
+  g.drawImage(src, 0, 0);
+  return c;
+}
+
+// ---------- Sprite atlas ----------
+// atlas.png packs the newer art (planes, helicopters, bullets, effects) into one image, so it costs
+// one request. The frame table comes from assets/atlas.json; the loose PNGs there are the source art.
+const ATLAS = {
+  rotor:       [0, 0, 490, 490],       rotor2:      [494, 0, 490, 490],
+  heli1:       [988, 0, 242, 420],     heli2:       [1234, 0, 200, 404],
+  jet1:        [1438, 0, 204, 366],    jet2:        [1646, 0, 204, 354],
+  biplane:     [0, 494, 414, 338],     bomber:      [418, 494, 530, 336],
+  attackJet:   [952, 494, 428, 330],   transport1:  [1384, 494, 344, 330],
+  transport2:  [0, 836, 420, 320],     fighter:     [424, 836, 408, 318],
+  fireball:    [858, 836, 34, 88],     plasma:      [896, 836, 38, 78],
+  missileGrey: [938, 836, 30, 78],     missileRed:  [972, 836, 32, 78],
+  star:        [1032, 836, 78, 76],    laser:       [1114, 836, 26, 74],
+  crescent:    [1144, 836, 42, 68],    orbGlow:     [1190, 836, 70, 68],
+  rocket:      [1286, 836, 36, 66],    flame:       [1326, 836, 28, 60],
+  bomb:        [1390, 836, 32, 54],    orbPink:     [1426, 836, 42, 52],
+  drop:        [1472, 836, 32, 46],    smoke:       [1508, 836, 42, 40],
+  thrusterA:   [1554, 836, 20, 30],    thrusterB:   [1578, 836, 16, 26]
+};
+
+// A neon halo baked once per sprite: the sprite is drawn with a wide coloured shadow, stacked so the
+// glow is strong, with a bright inner pass. drawBullet adds it under the bullet with 'lighter'.
+function glowed(src, color, pad) {
+  const c = makeCanvas(src.width + pad * 2, src.height + pad * 2);
+  const g = c.getContext('2d');
+  g.shadowColor = color;
+  g.shadowBlur = pad;
+  for (let i = 0; i < 2; i++) g.drawImage(src, pad, pad);
+  return c;
+}
+
+function cut(img, key, targetW) {
+  const [x, y, w, h] = ATLAS[key];
+  const c = makeCanvas(w, h);
+  c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+  return targetW ? scaled(c, targetW) : c;
 }
 
 function tinted(src, color, alpha) {
@@ -656,6 +1172,21 @@ function makeOrb(color) {
   return c;
 }
 
+// The art pack has no ship, so the gunboat is drawn: a navy-grey hull seen from above with a
+// bridge, funnel, mast and lifeboats. Its two guns are the tank turret, aimed separately (see updateTanks).
+// An iron cannonball with a highlight, for the gunboats.
+function makeBall() {
+  const c = makeCanvas(40, 40);
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(14, 14, 2, 20, 20, 19);
+  grad.addColorStop(0, '#d5dce2');
+  grad.addColorStop(0.45, '#5a646e');
+  grad.addColorStop(1, '#161b20');
+  g.fillStyle = grad;
+  g.beginPath(); g.arc(20, 20, 19, 0, TAU); g.fill();
+  return c;
+}
+
 function makeBolt(color) {
   const c = makeCanvas(16, 44);
   const g = c.getContext('2d');
@@ -709,11 +1240,19 @@ function loadAssets() {
   for (const name in SHOT_COLORS) SPR['orb_' + name] = makeOrb(SHOT_COLORS[name]);
   SPR.bolt_yellow = makeBolt('#ffd60a');
   SPR.bolt_cyan = makeBolt('#32e0ff');
+  SPR.orb_ball = makeBall();
 
-  PLANES.forEach((p, i) => loadImage(p.file, img => {
-    addSprite('plane' + i, scaled(img, 220), true);
-    if (i === selectedPlane) applyPlane();
-  }));
+  PLANES.forEach((p, i) => {
+    if (p.base !== undefined || p.atlas) return; // built from a base sprite, or cut from the atlas below
+    loadImage(p.file, img => {
+      const spr = scaled(img, 220);
+      addSprite('plane' + i, spr, true);
+      PLANES.forEach((q, j) => {
+        if (q.base === i) addSprite('plane' + j, tinted(spr, q.tint, q.alpha), true);
+      });
+      if (selectedPlane === i || PLANES[selectedPlane].base === i) applyPlane();
+    });
+  });
   loadImage('./enemy-plane-1.png', img => {
     addSprite('enemy1', scaled(img, 180), true);
     addTint('kamikaze', 'enemy1', '#ff1f1f', 0.45);
@@ -721,8 +1260,10 @@ function loadAssets() {
   loadImage('./enemy-plane-2.png', img => addSprite('enemy2', scaled(img, 180), true));
   loadImage('./enemy-plane-3.png', img => {
     addSprite('enemy3', scaled(img, 180), true);
-    addSprite('viper', tinted(scaled(img, 400), '#ff1744', 0.3), true);
+    // the first boss has its own art now, see boss-plane-1.png below
   });
+  loadImage('./boss-plane-1.png', img => addSprite('viper', flippedV(scaled(img, 440)), true)); // drawn nose-up, so turned over
+  for (const i in OUTPOSTS) loadImage(OUTPOSTS[i][0], img => addSprite('outpost' + i, scaled(img, 400), false));
   loadImage('./boss.png', img => {
     addSprite('vulture', scaled(img, Math.min(640, img.naturalWidth)), true);
     addTint('hive', 'vulture', '#39d353', 0.4);
@@ -739,6 +1280,60 @@ function loadAssets() {
   loadImage('./missile.png', img => addSprite('weapon', scaled(img, 96), false));
   loadImage('./powerup.png', img => addSprite('health', scaled(img, 128), false));
   loadImage('./explosion.png', img => { SPR.explosion = scaled(img, 1200); });
+  loadImage('./cloud.png', img => {
+    SPR.cloud = scaled(img, 512);
+    // the PNG is wispy; stacking it on itself once thickens the body while the edges stay soft
+    SPR.cloud.getContext('2d').drawImage(SPR.cloud, 0, 0);
+    SPR.cloud_f = mirrored(SPR.cloud);          // mirrored copy, so two clouds never look the same
+    SPR.cloud_s = tinted(SPR.cloud, '#000', 1); // soft shadow a low cloud throws on the ground
+    SPR.cloud_fs = mirrored(SPR.cloud_s);
+  });
+  loadImage('./atlas.png', img => {
+    // enemies fly down the screen, so the atlas aircraft (drawn nose-up) are turned over
+    const foe = (key, w) => flippedV(cut(img, key, w));
+    addSprite('heli1', foe('heli1', 150), true);
+    addSprite('heli2', foe('heli2', 130), true);
+    addSprite('jet1', foe('jet1', 120), true);
+    addSprite('jet2', foe('jet2', 120), true);
+    addSprite('bomber', foe('bomber', 320), true);
+    addSprite('transport1', foe('transport1', 220), true);
+    addSprite('transport2', foe('transport2', 240), true);
+    addSprite('emissile', foe('missileRed', 32), true);
+    addSprite('gunship', tinted(foe('heli2', 200), '#ff6a3d', 0.3), true); // the helicopter boss
+    SPR.rotor = cut(img, 'rotor', 240);
+    SPR.rotor2 = cut(img, 'rotor2', 240);
+    for (const k of ['plasma', 'star', 'laser', 'crescent', 'orbGlow', 'rocket', 'flame',
+                     'bomb', 'orbPink', 'drop', 'smoke', 'thrusterA', 'thrusterB']) SPR[k] = cut(img, k);
+    SPR.orbRed = tinted(SPR.orbGlow, '#ff2020', 0.6);
+    for (const k of ['plasma', 'crescent', 'drop']) SPR[k + '_g'] = glowed(SPR[k], '#36e4ff', 10);
+    SPR.rocket_g = glowed(SPR.rocket, '#ffb347', 8);
+    PLANES.forEach((p, i) => {
+      if (!p.atlas) return;
+      addSprite('plane' + i, cut(img, p.atlas, 220), true);
+      if (selectedPlane === i) applyPlane();
+    });
+  });
+  loadImage('./boats.png', img => {
+    const cutB = key => {
+      const [x, y, w, h] = BOAT_SHEET[key];
+      const c = makeCanvas(w, h);
+      c.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+      return c;
+    };
+    for (const kind in BOATS) {
+      addSprite(kind, cutB(kind), false);
+      addSprite(kind + '_dmg', cutB(kind + '_dmg'), false);
+      const [x, y, w, h, n] = BOAT_SHEET['wake_' + kind]; // a strip of frames, left to right
+      SPR['wake_' + kind] = [];
+      for (let i = 0; i < n; i++) {
+        const c = makeCanvas(w, h);
+        c.getContext('2d').drawImage(img, x + i * w, y, w, h, 0, 0, w, h);
+        SPR['wake_' + kind].push(c);
+      }
+    }
+    SPR.gunMain = cutB('gunMain');
+    SPR.gunAA = cutB('gunAA');
+  });
   // Backgrounds cycle every 2nd boss; each is loaded into its slot so the order is stable.
   BG_FILES.forEach((src, i) => loadImage(src, img => {
     SPR.bgs[i] = makeSeamless(img, 160);
@@ -766,32 +1361,50 @@ const legacyMuted = readStore('planeCrashMuted', '0') === '1';
 let sfxOn = readStore('planeCrashSfx', legacyMuted ? '0' : '1') === '1';
 let musicOn = readStore('planeCrashMusic', legacyMuted ? '0' : '1') === '1';
 
-function makePool(src, count, volume) {
+function makePool(srcs, count, volume, vary) {
+  if (!Array.isArray(srcs)) srcs = [srcs];
   const els = [];
   for (let i = 0; i < count; i++) {
-    const el = new Audio(src);
+    const el = new Audio(srcs[i % srcs.length]);
     el.preload = 'auto';
     el.volume = volume;
     trackAudio(el);
     els.push(el);
   }
-  return { els, next: 0, last: 0 };
+  return { els, next: 0, last: 0, vary: vary || 0 };
 }
 
-// One Audio element cannot overlap itself, so each sound gets a small pool.
+// One Audio element cannot overlap itself, so each sound gets a small pool. A pool cycles through
+// several files where the pack has variants, and `vary` nudges the pitch a little on every play so
+// a stream of shots or explosions never sounds like the same sample repeating.
+// The MP3s are made from game/audio (see README there). Volumes even out the source levels:
+// the gun and UI files are quiet, the explosions are hot.
 const SFX = {
-  shoot: makePool('./shoot.mp3', 4, 0.22),
-  shoot2: makePool('./shoot2.mp3', 4, 0.22),
-  boom: makePool('./dead.mp3', 3, 0.3),
-  dead: makePool('./dead.mp3', 1, 0.9),
-  bigBoom: makePool('./mixkit-fire-explosion-1343.wav', 1, 0.55)
+  mg:        makePool(['./sfx-mg1.mp3', './sfx-mg2.mp3', './sfx-mg3.mp3'], 6, 0.5, 0.06),
+  plasma:    makePool('./sfx-plasma.mp3', 4, 0.3, 0.05),
+  laser:     makePool('./sfx-laser.mp3', 3, 0.22, 0.08),
+  cannon:    makePool('./sfx-cannon.mp3', 2, 0.4, 0.06),
+  missile:   makePool('./sfx-missile.mp3', 3, 0.32, 0.06),
+  bomb:      makePool('./sfx-bomb.mp3', 2, 0.35, 0.05),
+  boomS:     makePool('./sfx-boom-s.mp3', 4, 0.38, 0.1),
+  boomM:     makePool('./sfx-boom-m.mp3', 3, 0.48, 0.08),
+  boomL:     makePool('./sfx-boom-l.mp3', 1, 0.75, 0),
+  hit:       makePool(['./sfx-hit1.mp3', './sfx-hit2.mp3'], 4, 0.2, 0.1),
+  hurt:      makePool('./sfx-hurt.mp3', 1, 0.65, 0),
+  shield:    makePool('./sfx-shield.mp3', 1, 0.5, 0),
+  health:    makePool('./sfx-pickup-health.mp3', 1, 0.5, 0),
+  powerup:   makePool('./sfx-pickup-powerup.mp3', 1, 0.5, 0),
+  star:      makePool('./sfx-pickup-star.mp3', 2, 0.45, 0.04),
+  extraLife: makePool('./sfx-extra-life.mp3', 1, 0.6, 0),
+  alarm:     makePool('./sfx-alarm.mp3', 1, 0.5, 0),
+  uiClick:   makePool('./sfx-ui-click.mp3', 2, 0.7, 0),
+  uiSelect:  makePool('./sfx-ui-select.mp3', 1, 0.7, 0),
+  uiBack:    makePool('./sfx-ui-back.mp3', 1, 0.7, 0),
+  uiPause:   makePool('./sfx-ui-pause.mp3', 1, 0.7, 0),
+  jingleStart:   makePool('./jingle-start.mp3', 1, 0.5, 0),
+  jingleVictory: makePool('./jingle-victory.mp3', 1, 0.55, 0),
+  jingleOver:    makePool('./jingle-over.mp3', 1, 0.55, 0)
 };
-
-const music = new Audio('./background.mp3');
-music.loop = true;
-music.volume = 0.4;
-music.preload = 'auto';
-trackAudio(music);
 
 function playSfx(pool, minGap) {
   if (!sfxOn) return;
@@ -801,10 +1414,69 @@ function playSfx(pool, minGap) {
   const el = pool.els[pool.next++ % pool.els.length];
   try {
     el.currentTime = 0;
+    if (pool.vary) {
+      el.preservesPitch = false;
+      el.playbackRate = 1 + rand(-pool.vary, pool.vary);
+    }
     const p = el.play();
     if (p && p.catch) p.catch(() => {});
   } catch (err) { /* audio is optional */ }
 }
+
+// ---------- Music ----------
+// Three loops, one per mood. Switching cross-fades over about a second, driven by a timer so the
+// fade also runs on the menu and game-over screens, where the game loop is idle.
+const MUSIC_FADE = 1.2; // volume per second
+const MUSIC = {
+  menu: musicTrack('./music-menu.mp3', 0.45),
+  game: musicTrack('./music-game.mp3', 0.42),
+  boss: musicTrack('./music-boss.mp3', 0.5)
+};
+let musicCur = null; // key of the loop that should be heard
+let musicTickAt = performance.now();
+
+function musicTrack(src, vol) {
+  const el = new Audio(src);
+  el.loop = true;
+  el.preload = 'auto';
+  el.volume = 0;
+  trackAudio(el);
+  return { el, vol, target: 0 };
+}
+
+function playTrack(t) {
+  const p = t.el.play();
+  if (p && p.catch) p.catch(() => {}); // blocked until the first tap; unlockAudio retries
+}
+
+// Fade to `key` (or to silence with null). `restart` begins that loop from the top.
+function switchMusic(key, restart) {
+  musicCur = key;
+  for (const k in MUSIC) {
+    const t = MUSIC[k];
+    t.target = k === key ? t.vol : 0;
+    if (k !== key) continue;
+    if (restart) { try { t.el.currentTime = 0; } catch (err) { /* not loaded yet */ } }
+    if (musicOn) playTrack(t);
+  }
+}
+
+function musicTick() {
+  const now = performance.now();
+  const dt = Math.min((now - musicTickAt) / 1000, 0.25);
+  musicTickAt = now;
+  for (const k in MUSIC) {
+    const t = MUSIC[k];
+    const target = musicOn ? t.target : 0;
+    if (t.el.volume === target) {
+      if (target === 0 && !t.el.paused) t.el.pause();
+      continue;
+    }
+    const step = MUSIC_FADE * dt;
+    t.el.volume = t.el.volume < target ? Math.min(target, t.el.volume + step) : Math.max(0, t.el.volume - step);
+  }
+}
+setInterval(musicTick, 50);
 
 // Mobile browsers only let a sound play later if it was first started from a tap,
 // so start every sound effect silently on the first Play press.
@@ -825,12 +1497,19 @@ function unlockAudio() {
       }
     }
   }
+  playMusic(); // the menu loop may have been refused before this tap
+}
+document.addEventListener('pointerdown', unlockAudio, { once: true });
+document.addEventListener('keydown', unlockAudio, { once: true });
+
+// Resume whichever loop is current (after a pause, or once audio is unlocked).
+function playMusic() {
+  if (!musicOn || !musicCur) return;
+  playTrack(MUSIC[musicCur]);
 }
 
-function playMusic() {
-  if (!musicOn) return;
-  const p = music.play();
-  if (p && p.catch) p.catch(() => {});
+function pauseMusic() {
+  for (const k in MUSIC) MUSIC[k].el.pause();
 }
 
 function setSfx(on) {
@@ -842,8 +1521,7 @@ function setSfx(on) {
 function setMusic(on) {
   musicOn = on;
   writeStore('planeCrashMusic', on ? '1' : '0');
-  if (!on) music.pause();
-  else if (state === 'playing') playMusic();
+  if (on) playMusic(); // off: musicTick fades every loop out, then pauses it
   syncAudioUi();
 }
 
@@ -862,6 +1540,165 @@ function syncAudioUi() {
   musicToggle.querySelector('.state').textContent = musicOn ? 'ON' : 'OFF';
 }
 
+// ---------- Shop and purchases ----------
+// What the shop sells. Prices are only shown here; the server's catalog
+// (lib/payments.ts) is the one that counts, and the two must agree.
+const CURRENCY = '৳'; // ৳
+// Items with a 'stock' are consumables: each purchase adds 'amount' uses to that wallet counter.
+const SHOP = [
+  { id: 'hangar',  icon: '✈️', name: 'Full Hangar',   price: 99, desc: 'Unlock all four standard planes right now, no bosses required.' },
+  { id: 'armor',   icon: '🛡️', name: 'Armor Plating', price: 49, desc: 'Three runs with +2 max health. One is used each time you start.', stock: 'armor', amount: 3, unit: 'run' },
+  { id: 'revive3', icon: '💖', name: 'Revive Pack',   price: 99, desc: 'Three revives. Continue a run after you crash, keeping your score and level.', stock: 'revives', amount: 3, unit: 'revive' }
+];
+const REVIVE_PACK = SHOP[2];
+const ARMOR_BONUS = 2;
+// PRO planes are shop items too, so they can be bought from the shop or the plane picker.
+PLANES.forEach((p, i) => {
+  if (p.item) SHOP.push({ id: p.item, plane: i, name: p.name, price: p.price, desc: p.perk });
+});
+const shopItem = id => SHOP.find(i => i.id === id);
+
+// wallet = { hangar: true, armor: 2, revives: 2, receipts: [...] }
+function readWallet() {
+  let w = {};
+  try {
+    const parsed = JSON.parse(readStore('planeCrashWallet', '{}'));
+    if (parsed && typeof parsed === 'object') w = parsed;
+  } catch (err) { /* corrupt save: start empty */ }
+  w.revives = Math.max(0, parseInt(w.revives, 10) || 0);
+  w.armor = w.armor === true ? 3 : Math.max(0, parseInt(w.armor, 10) || 0); // armor used to be a one-off
+  w.receipts = Array.isArray(w.receipts) ? w.receipts : [];
+  return w;
+}
+const wallet = readWallet();
+
+function saveWallet() { writeStore('planeCrashWallet', JSON.stringify(wallet)); }
+function owns(id) { return wallet[id] === true; }
+function priceOf(item) { return CURRENCY + item.price; }
+
+// A confirmed purchase lands here, whatever it was bought from.
+function grant(id, receipt) {
+  const item = SHOP.find(i => i.id === id);
+  if (!item) return;
+  if (item.stock) wallet[item.stock] += item.amount;
+  else wallet[id] = true;
+  if (receipt) wallet.receipts = wallet.receipts.concat(receipt).slice(-20);
+  saveWallet();
+  if (id === 'hangar') unlockAllPlanes();
+  refreshShopUi();
+  if (!planeScreen.classList.contains('hidden')) renderPlanePicker();
+  syncProfileUi();
+}
+
+function unlockAllPlanes() {
+  unlockedPlanes = FREE_PLANES;
+  writeStore('planeCrashUnlocked', String(unlockedPlanes));
+}
+
+// Standard planes are earned (or come with Full Hangar); PRO planes are bought one by one.
+function planeAvailable(i) {
+  const p = PLANES[i];
+  return p ? (p.item ? owns(p.item) : i < unlockedPlanes) : false;
+}
+
+function ownedPlaneCount() {
+  let n = 0;
+  for (let i = 0; i < PLANES.length; i++) if (planeAvailable(i)) n++;
+  return n;
+}
+
+// ---------- Pilot profile ----------
+const AVATARS = ['🧑‍✈️', '👩‍✈️', '👨‍✈️', '🦅', '🐉', '🦊', '🐯', '🤖', '👽', '🦈', '🐺', '⭐'];
+// Ranks are earned by bosses destroyed over all games.
+const RANKS = [[0, 'Cadet'], [3, 'Pilot'], [10, 'Veteran'], [25, 'Ace'], [60, 'Commander'], [120, 'Legend']];
+
+function readProfile() {
+  let p = {};
+  try {
+    const parsed = JSON.parse(readStore('planeCrashProfile', '{}'));
+    if (parsed && typeof parsed === 'object') p = parsed;
+  } catch (err) { /* corrupt save: start fresh */ }
+  const num = v => Math.max(0, parseInt(v, 10) || 0);
+  return {
+    name: typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 16) : 'Pilot',
+    avatar: AVATARS.includes(p.avatar) ? p.avatar : AVATARS[0],
+    games: num(p.games), kills: num(p.kills), bosses: num(p.bosses), time: num(p.time),
+    since: num(p.since) || Date.now()
+  };
+}
+const profile = readProfile();
+function saveProfile() { writeStore('planeCrashProfile', JSON.stringify(profile)); }
+
+function rankFor(bosses) {
+  let rank = RANKS[0], next = null;
+  for (const r of RANKS) {
+    if (bosses >= r[0]) rank = r;
+    else { next = r; break; }
+  }
+  return { name: rank[1], next: next ? { name: next[1], need: next[0] - bosses } : null };
+}
+
+function formatHours(seconds) {
+  if (seconds < 60) return seconds + 's';
+  const m = Math.round(seconds / 60);
+  return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+}
+
+// Lifetime stats. A revived run reports again at its next game over, so only the
+// part not yet counted is added each time.
+let runCounted = false, countedKills = 0, countedBosses = 0, countedTime = 0;
+function recordRun() {
+  if (!runCounted) { profile.games++; runCounted = true; }
+  profile.kills += kills - countedKills; countedKills = kills;
+  profile.bosses += bossesDefeated - countedBosses; countedBosses = bossesDefeated;
+  const t = Math.round(elapsed);
+  profile.time += t - countedTime; countedTime = t;
+  saveProfile();
+  syncProfileUi();
+}
+
+function syncProfileUi() {
+  const rank = rankFor(profile.bosses);
+  chipAvatar.textContent = profile.avatar;
+  chipName.textContent = profile.name;
+  chipRank.textContent = rank.name;
+  avatarBtn.textContent = profile.avatar;
+  if (document.activeElement !== pilotName) pilotName.value = profile.name;
+  pilotRank.innerHTML = '';
+  pilotRank.append(rank.name);
+  if (rank.next) {
+    const small = document.createElement('small');
+    small.textContent = ' · ' + rank.next.need + ' more boss' + (rank.next.need === 1 ? '' : 'es') + ' to ' + rank.next.name;
+    pilotRank.appendChild(small);
+  }
+  $('stGames').textContent = profile.games;
+  $('stBest').textContent = best;
+  $('stKills').textContent = profile.kills;
+  $('stBosses').textContent = profile.bosses;
+  $('stTime').textContent = formatHours(profile.time);
+  $('stPlanes').textContent = ownedPlaneCount() + '/' + PLANES.length;
+  for (const b of avatarPick.children) b.classList.toggle('on', b.textContent === profile.avatar);
+}
+
+function openProfile() {
+  syncProfileUi();
+  avatarPick.classList.add('hidden');
+  startScreen.classList.add('hidden');
+  profileScreen.classList.remove('hidden');
+}
+
+function closeProfile() {
+  pilotName.blur();
+  profileScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+function setPilotName(raw) {
+  profile.name = raw.trim().slice(0, 16) || 'Pilot';
+  saveProfile();
+  syncProfileUi();
+}
+
 // ---------- Game state ----------
 let state = 'menu'; // menu | playing | paused | dying | over
 let player = null;
@@ -870,34 +1707,54 @@ let explosions = [], particles = [], texts = [];
 let boss = null, bossIndex = 0, bossTimer = 0, warning = null;
 let score = 0, kills = 0, bossesDefeated = 0;
 let best = parseInt(readStore('planeCrashBest', '0'), 10) || 0;
-let unlockedPlanes = clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, PLANES.length);
-let selectedPlane = clamp(parseInt(readStore('planeCrashPlane', '0'), 10) || 0, 0, unlockedPlanes - 1);
+let unlockedPlanes = owns('hangar') ? FREE_PLANES
+  : clamp(parseInt(readStore('planeCrashUnlocked', '1'), 10) || 1, 1, FREE_PLANES);
+// Saved by name. Older saves hold an index from when the PRO planes started at 4; they sit two further on now.
+let selectedPlane = PLANES.findIndex(p => p.name === readStore('planeCrashPlaneName', ''));
+if (selectedPlane < 0) {
+  const legacy = parseInt(readStore('planeCrashPlane', '0'), 10) || 0;
+  selectedPlane = legacy >= 4 ? legacy + 2 : legacy;
+}
+if (!planeAvailable(selectedPlane)) selectedPlane = 0;
 let unlockedThisRun = null; // name of a plane unlocked during the current run, for the game-over screen
+let bestAtStart = 0;        // the best score before this run, so a revived run still counts as a new best
 let elapsed = 0;      // seconds survived, drives the difficulty
 let clock = 0;        // animation clock
 let D = difficulty(0);
 let level = 1, levelPulse = 0;
-let enemyTimer = 0, tankTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
+let enemyTimer = 0, tankTimer = 0, outpostTimer = 0, weaponDropTimer = 0, healthDropTimer = 0;
 let deathTimer = 0;
 let bgScroll = 0, shake = 0, hurtFlash = 0;
 let bgIndex = 0, bgFade = null; // bgFade = { from, to, t } while cross-fading
+let clouds = [], cloudTimer = { low: 0, high: 0 };
 let banner = null;
 let rafId = 0, lastFrame = 0;
 
 function resetGame() {
   applyPlane();
-  const size = 88 * S;
+  const size = 100 * S;
   const ps = playerSize();
+  // Armor Plating is spent one run at a time.
+  const armored = wallet.armor > 0;
+  if (armored) {
+    wallet.armor--;
+    saveWallet();
+  }
+  const baseHp = Math.round(5 * (perk('hp') || 1));
+  const hp = Math.round((5 + (armored ? ARMOR_BONUS : 0)) * (perk('hp') || 1));
   player = {
     x: W / 2, y: H - size * 0.9,
     tx: W / 2, ty: H - size * 0.9, // where the controls want the plane to be
     w: ps.w, h: ps.h,
-    hp: 5, maxHp: 5,
+    hp, maxHp: hp,
+    baseHp, // health above this is Armor Plating, drawn in blue on the HUD
     alive: true,
     invuln: 0,
     tilt: 0,
     fireTimer: 0.3,
-    weapon: 1, weaponTimer: 0
+    weapon: 1, weaponTimer: 0,
+    rockets: 0, rocketTimer: 0, rocketSide: 1, // seconds of rocket pods left, until the next one, which wing
+    smokeT: 0
   };
   bullets = []; enemies = []; tanks = []; shots = []; pickups = [];
   explosions = []; particles = []; texts = [];
@@ -906,12 +1763,16 @@ function resetGame() {
   elapsed = 0; clock = 0;
   D = difficulty(0);
   level = 1; levelPulse = 0;
-  enemyTimer = 0.8; tankTimer = 8; weaponDropTimer = 12; healthDropTimer = 28;
+  enemyTimer = 0.8; tankTimer = 8; outpostTimer = 20; weaponDropTimer = 12; healthDropTimer = 28;
   deathTimer = 0;
   bgScroll = 0; shake = 0; hurtFlash = 0;
   bgIndex = 0; bgFade = null;
+  seedClouds();
   unlockedThisRun = null;
+  bestAtStart = best;
+  runCounted = false; countedKills = 0; countedBosses = 0; countedTime = 0;
   banner = null;
+  if (armored) showBanner('ARMOR PLATING', wallet.armor + ' run' + (wallet.armor === 1 ? '' : 's') + ' left', '#3ea6ff', 2);
   drag = null;
   keys.clear();
 }
@@ -955,6 +1816,20 @@ canvas.addEventListener('contextmenu', e => e.preventDefault());
 const MOVE_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'KeyA', 'KeyD', 'KeyW', 'KeyS'];
 
 window.addEventListener('keydown', e => {
+  // The checkout form and the shop take the keyboard; the game keys must not fire
+  // while a phone number is being typed.
+  if (!payModal.classList.contains('hidden')) {
+    if (e.code === 'Escape') closeCheckout();
+    return;
+  }
+  if (!shopScreen.classList.contains('hidden')) {
+    if (e.code === 'Escape') closeShop();
+    return;
+  }
+  if (!profileScreen.classList.contains('hidden')) {
+    if (e.code === 'Escape' || (e.code === 'Enter' && e.target === pilotName)) closeProfile();
+    return;
+  }
   if (MOVE_KEYS.includes(e.code)) {
     keys.add(e.code);
     e.preventDefault();
@@ -1016,8 +1891,8 @@ function roman(n) {
 }
 
 function addScore(base) {
-  // later levels are worth a little more
-  score += Math.round(base * (1 + (level - 1) * 0.15) / 5) * 5;
+  // later levels are worth a little more, and the Wraith adds its own bonus
+  score += Math.round(base * (1 + (level - 1) * 0.15) * (perk('score') || 1) / 5) * 5;
 }
 
 // ---------- Effects ----------
@@ -1035,6 +1910,12 @@ function sparks(x, y, count, color, speed) {
   }
 }
 
+// A puff that drifts down the screen, growing and thinning as it goes (drawn with the smoke sprite).
+function smoke(x, y, size, life) {
+  if (particles.length >= MAX_PARTICLES) return;
+  particles.push({ x, y, vx: rand(-14, 14) * S, vy: rand(25, 55) * S, life, max: life, size, color: '#ccc', spr: 'smoke' });
+}
+
 function floatText(x, y, str, color) {
   texts.push({ x, y, str, color, life: 1.1 });
 }
@@ -1044,27 +1925,49 @@ function showBanner(title, sub, color, time) {
 }
 
 // ---------- Player ----------
+// Player shots are blue so they never read as enemy fire: [width, height] in px before scaling.
+const PLAYER_SHOTS = { plasma: [11, 22], crescent: [12, 19], drop: [9, 13], rocket: [13, 24] };
+
 function firePlayer() {
   const p = player;
   const speed = 620 * S;
   const top = p.y - p.h * 0.45;
-  const w = 7 * S, h = 20 * S;
-  const add = (x, angle, color) => bullets.push({
-    x, y: top, w, h, color,
-    vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed,
-    dead: false
-  });
+  const add = (x, angle, key) => {
+    const d = PLAYER_SHOTS[key];
+    bullets.push({
+      x, y: top, w: d[0] * S, h: d[1] * S, key, rot: angle, dmg: 1,
+      vx: Math.sin(angle) * speed, vy: -Math.cos(angle) * speed,
+      dead: false
+    });
+  };
   if (p.weapon === 1) {
-    add(p.x, 0, 'bolt_yellow');
+    add(p.x, 0, 'plasma');
   } else {
-    add(p.x - p.w * 0.3, 0, 'bolt_cyan');
-    add(p.x + p.w * 0.3, 0, 'bolt_cyan');
+    add(p.x - p.w * 0.3, 0, 'crescent');
+    add(p.x + p.w * 0.3, 0, 'crescent');
     if (p.weapon >= 3) {
-      add(p.x - p.w * 0.12, -0.2, 'bolt_yellow');
-      add(p.x + p.w * 0.12, 0.2, 'bolt_yellow');
+      add(p.x - p.w * 0.12, -0.2, 'drop');
+      add(p.x + p.w * 0.12, 0.2, 'drop');
     }
   }
-  playSfx(p.weapon === 1 ? SFX.shoot : SFX.shoot2);
+  playSfx(p.weapon === 1 ? SFX.mg : SFX.plasma);
+}
+
+// Rocket pods: one rocket at a time, alternating wings. It leaves slowly, then accelerates and
+// homes in (see steerRocket). A side-arm, not a main gun: it hits for 2 about once a second.
+function fireRockets() {
+  const p = player;
+  const d = PLAYER_SHOTS.rocket;
+  const side = p.rocketSide;
+  p.rocketSide = -side;
+  const a = side * 0.45;
+  bullets.push({
+    x: p.x + side * p.w * 0.38, y: p.y, w: d[0] * S, h: d[1] * S, key: 'rocket', rot: a, dmg: 2,
+    vx: Math.sin(a) * 220 * S, vy: -Math.cos(a) * 220 * S,
+    homing: true, speed: 480 * S, life: 2, puff: 0,
+    dead: false
+  });
+  playSfx(SFX.missile);
 }
 
 function updatePlayer(dt) {
@@ -1099,17 +2002,40 @@ function updatePlayer(dt) {
     }
   }
 
+  if (p.rockets > 0) {
+    p.rockets -= dt;
+    p.rocketTimer -= dt;
+    if (p.rocketTimer <= 0) {
+      fireRockets();
+      p.rocketTimer = ROCKET_GAP / (perk('fire') || 1);
+    }
+  }
+  if (p.hp <= p.maxHp * 0.4) { // a badly damaged plane trails smoke
+    p.smokeT -= dt;
+    if (p.smokeT <= 0) {
+      p.smokeT = 0.07;
+      smoke(p.x + rand(-4, 4) * S, p.y + p.h * 0.35, 9 * S, 0.6);
+    }
+  }
+
   p.fireTimer -= dt;
   if (p.fireTimer <= 0) {
     firePlayer();
-    p.fireTimer = Math.max(p.fireTimer + FIRE_INTERVAL, 0);
+    p.fireTimer = Math.max(p.fireTimer + FIRE_INTERVAL / (perk('fire') || 1), 0);
   }
+}
+
+// The perk of the plane being flown, if it has one.
+function perk(name) {
+  const perks = PLANES[selectedPlane].perks;
+  return perks ? perks[name] : undefined;
 }
 
 function damagePlayer(amount) {
   const p = player;
   if (!p.alive || p.invuln > 0) return;
-  p.hp -= amount;
+  playSfx(p.hp > p.baseHp ? SFX.shield : SFX.hurt); // armor plating rings, the plane itself crunches
+  p.hp -= amount * (1 - (perk('resist') || 0)); // the Aegis shrugs off part of every hit
   p.invuln = 1.1;
   hurtFlash = 1;
   shake = Math.max(shake, 8);
@@ -1122,7 +2048,7 @@ function damagePlayer(amount) {
     drag = null;
     shake = 16;
     explode(p.x, p.y, p.w * 2.6, true);
-    playSfx(SFX.dead);
+    playSfx(SFX.boomL);
   }
 }
 
@@ -1132,6 +2058,10 @@ function pickEnemyKind(t) {
   if (t >= 20) pool.push(['weaver', 2 + Math.min(2, t / 90)]);
   if (t >= 45) pool.push(['sniper', 1.5 + Math.min(2.5, t / 100)]);
   if (t >= 70) pool.push(['kamikaze', 1 + Math.min(3, t / 110)]);
+  if (t >= 30) pool.push(['heli', 1.2 + Math.min(1.5, t / 150)]);
+  if (t >= 40) pool.push(['transport', 0.45]);
+  if (t >= 55) pool.push(['interceptor', 1 + Math.min(2, t / 120)]);
+  if (t >= 80 && !atSea()) pool.push(['bomber', 0.8 + Math.min(1.2, t / 200)]);
   let total = 0;
   for (const entry of pool) total += entry[1];
   let roll = Math.random() * total;
@@ -1144,18 +2074,46 @@ function pickEnemyKind(t) {
 
 function makeEnemy(kind, x, y, size) {
   const def = ENEMY_KINDS[kind];
+  const sprite = def.sprite || def.sprites[Math.floor(Math.random() * def.sprites.length)];
+  const spr = SPR[sprite];
   const e = {
-    kind, sprite: def.sprite, score: def.score,
-    x, y, w: size, h: size,
+    kind, sprite, score: def.score,
+    x, y, w: size, h: def.sprites && spr ? size * spr.height / spr.width : size, // atlas craft keep their shape
     hp: 1, maxHp: 1,
-    vy: 0, t: 0, flash: 0,
+    vx: 0, vy: 0, t: 0, flash: 0, puff: 0,
     fire: rand(0.5, 1.4),
+    burst: 0, burstCd: 0,
     dead: false
   };
   if (kind === 'kamikaze') {
     e.hp = 1 + Math.floor(D.hpBonus / 2);
     e.vy = 250 * S * (1 + Math.min(elapsed / 600, 0.5));
     e.steer = 130 * S * (1 + Math.min(elapsed / 400, 0.6));
+  } else if (kind === 'heli') {
+    e.hp = 7 + D.hpBonus;
+    e.vy = 170 * S * D.speed;
+    e.hoverY = rand(H * 0.16, H * 0.34);
+    e.hover = rand(5, 7); // seconds it holds position before flying on
+    e.hoverT = -1;        // < 0 until it arrives; then the time spent hovering, which drives the drift
+    e.drift = rand(0.8, 1.3);
+    e.rotor = rand(0, TAU);
+    e.fire = rand(0.8, 1.4);
+  } else if (kind === 'interceptor') {
+    e.hp = 2 + D.hpBonus; // vx/vy are set by the spawner, which picks the corner it comes from
+    e.fire = rand(0.3, 0.6);
+  } else if (kind === 'bomber') {
+    e.hp = 9 + D.hpBonus * 2;
+    e.vy = rand(48, 62) * S * D.speed;
+    e.fire = 1.2;
+  } else if (kind === 'transport') {
+    e.hp = 5 + D.hpBonus;
+    e.vy = rand(70, 90) * S * D.speed;
+  } else if (kind === 'missile') {
+    e.hp = 1;
+    e.a = Math.PI / 2; // heading, radians from +x
+    e.speed = 230 * S * (1 + Math.min(elapsed / 500, 0.4));
+    e.turn = 2.4;      // radians per second it can bend toward the player
+    e.life = 5;
   } else {
     e.hp = 1 + Math.floor(Math.random() * 3) + D.hpBonus;
     e.vy = (kind === 'sniper' ? rand(70, 110) : rand(90, 170)) * S * D.speed;
@@ -1172,7 +2130,21 @@ function makeEnemy(kind, x, y, size) {
 
 function spawnEnemy() {
   const kind = pickEnemyKind(elapsed);
-  const size = (kind === 'kamikaze' ? 50 : rand(54, 80)) * S;
+  const size = (kind === 'kamikaze' ? 50 : kind === 'heli' ? 70 : kind === 'interceptor' ? 62 :
+                kind === 'bomber' ? 130 : kind === 'transport' ? 104 : rand(54, 80)) * S;
+
+  if (kind === 'interceptor') { // a strafing run from one top corner to the far side
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const e = makeEnemy(kind, side < 0 ? -size : W + size, rand(size, H * 0.22), size);
+    e.vx = -side * rand(250, 320) * S * D.speed;
+    e.vy = rand(110, 160) * S * D.speed;
+    enemies.push(e);
+    return 1;
+  }
+  if (kind === 'transport') { // hugs an edge, well away from the action
+    enemies.push(makeEnemy(kind, Math.random() < 0.5 ? size * 0.55 : W - size * 0.55, -size * 0.6, size));
+    return 1.2;
+  }
 
   // a V-shaped squadron now and then
   if (kind === 'grunt' && elapsed >= 35 && !boss && Math.random() < 0.2) {
@@ -1204,21 +2176,86 @@ function spawnEnemy() {
   return 1;
 }
 
-function spawnTank(x) {
-  const w = 52 * S, h = 79 * S;
+// Ground units, all kept in `tanks`. Over the sea boats patrol instead (see BOATS). Outposts
+// ('outpost<bg>', see OUTPOSTS) are big bases that sit still and lob a lazy missile now and then.
+//   [width, height, base health, seconds before the first shot]
+const GROUND = {
+  tank: [52, 79, 3, 0.8]
+};
+
+// Boats, cut from boats.png (assets/boats/make-sheet.py packs it; the table below must match).
+// Each hull is drawn bare and its guns are sprites that turn on their mounts. A main gun lobs a
+// slow iron cannonball, an AA gun spits quick small shots; the guns take turns. Mounts are
+// [x, y] fractions of the hull size from its centre, gun sizes are fractions of the hull width.
+//   The patrol boat is the common one; the destroyer turns up later and takes real punishment.
+const BOATS = {
+  ship:      { w: 44, hp: 5,  fire: 1.4, score: 35, mainSize: 0.71, aaSize: 0.57,
+               main: [[0, -0.233]], aa: [[0, 0.27]] },
+  destroyer: { w: 58, hp: 12, fire: 1.6, score: 80, mainSize: 0.87, aaSize: 0.46,
+               main: [[0, -0.261], [0, 0.21]], aa: [[-0.316, 0.08], [0.293, 0.08]] }
+};
+//   [x, y, width, height] in boats.png; the wakes are [x, y, frame width, height, frame count]
+const BOAT_SHEET = {
+  ship:           [1422, 0, 63, 195],   ship_dmg:      [1489, 0, 63, 195],
+  destroyer:      [1240, 0, 87, 355],   destroyer_dmg: [1331, 0, 87, 355],
+  gunMain:        [1556, 0, 76, 76],    gunAA:         [1556, 80, 40, 40],
+  wake_ship:      [0, 540, 154, 316, 6],
+  wake_destroyer: [0, 0, 206, 536, 6]
+};
+const isBoat = t => t.kind in BOATS;
+
+function spawnTank(x, kind) {
+  kind = kind || 'tank';
+  let w, h, hp, fire;
+  let guns = null;
+  if (isOutpost({ kind })) { // sized from its picture, which differs per background
+    const spr = SPR[kind];
+    w = OUTPOSTS[kind.slice(7)][1] * S;
+    h = spr ? w * spr.height / spr.width : w;
+    hp = 14; fire = 2.2;
+  } else if (kind in BOATS) { // sized from its hull picture
+    const B = BOATS[kind], fr = BOAT_SHEET[kind];
+    w = B.w * S; h = w * fr[3] / fr[2];
+    hp = B.hp; fire = B.fire;
+    guns = [];
+    for (const [gx, gy] of B.main) guns.push({ x: gx, y: gy, a: Math.PI / 2, main: true });
+    for (const [gx, gy] of B.aa) guns.push({ x: gx, y: gy, a: Math.PI / 2, main: false });
+  } else {
+    [w, h, hp, fire] = GROUND[kind];
+    w *= S; h *= S;
+  }
+  hp += Math.min(4, Math.floor(elapsed / 100));
   tanks.push({
+    kind,
     x: x === undefined ? rand(w / 2, Math.max(w / 2, W - w / 2)) : clamp(x, w / 2, W - w / 2),
     y: -h / 2, w, h,
-    hp: 3 + Math.min(4, Math.floor(elapsed / 100)),
-    turret: Math.PI / 2,
-    fire: 0.8,
+    hp, hp0: hp,
+    turret: Math.PI / 2, guns,
+    fire, gun: 0, t: rand(0, TAU),
     flash: 0,
     dead: false
   });
 }
 
+const isOutpost = t => t.kind.startsWith('outpost');
+
+// An outpost missile: slower, lazier and shorter-lived than a boss missile, and it only bruises.
+function launchOutpostMissile(t) {
+  if (enemies.length > 18) return;
+  const e = makeEnemy('missile', t.x, t.y - t.h * 0.2, 14 * S);
+  e.a = aimAtPlayer(t.x, t.y);
+  e.speed *= 0.7;
+  e.turn = 1.5;
+  e.life = 4;
+  e.light = true;
+  enemies.push(e);
+  smoke(t.x, t.y, 12 * S, 0.7);
+  sparks(t.x, t.y - t.h * 0.2, 5, '#ffd27a', 140 * S);
+  playSfx(SFX.missile);
+}
+
 function spawnPickup(kind, x, y) {
-  const r = 20 * S;
+  const r = (kind === 'star' ? 17 : 20) * S;
   pickups.push({ kind, x: clamp(x, r, W - r), y, r, t: 0, dead: false });
 }
 
@@ -1242,6 +2279,8 @@ function updateSpawns(dt) {
         const def = BOSSES[bossIndex % BOSSES.length];
         warning = { t: 2.4 };
         showBanner('WARNING', bossName(def, bossIndex) + ' APPROACHING', '#ff5252', 2.4);
+        playSfx(SFX.alarm);
+        cloudFront();
         spawnPickup('weapon', rand(30, W - 30), -30); // a supply drop for the fight ahead
       }
     }
@@ -1256,8 +2295,18 @@ function updateSpawns(dt) {
 
   tankTimer -= dt;
   if (tankTimer <= 0) {
-    if (!(boss && boss.def.ground)) spawnTank();
+    if (!(boss && boss.def.ground)) {
+      const sea = elapsed > 45 && Math.random() < 0.3 ? 'destroyer' : 'ship'; // destroyers come later, and rarely
+      spawnTank(undefined, atSea() ? sea : 'tank');
+    }
     tankTimer = D.tankEvery * rand(0.8, 1.2) * (boss ? 1.8 : 1);
+  }
+
+  outpostTimer -= dt; // at most two at a time, never during a boss
+  if (outpostTimer <= 0) {
+    outpostTimer = rand(10, 18);
+    const key = 'outpost' + bgIndex;
+    if (!boss && SPR[key] && tanks.filter(isOutpost).length < 2) spawnTank(undefined, key);
   }
 
   weaponDropTimer -= dt;
@@ -1275,7 +2324,14 @@ function updateSpawns(dt) {
 // ---------- Enemy fire ----------
 function fireShot(x, y, angle, speed, r, color, dmg) {
   if (shots.length >= MAX_SHOTS) return;
-  shots.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r, color, dmg, dead: false });
+  shots.push({ x, y, a: angle, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, r, color, dmg, dead: false });
+}
+
+// A bomb tumbles sideways a little as it falls, then lands and moves with the ground (see updateShots),
+// so a bomber leaves a scattered field behind it rather than a column.
+function dropBomb(x, y) {
+  if (shots.length >= MAX_SHOTS) return;
+  shots.push({ x, y, a: Math.PI / 2, vx: rand(-50, 50) * S, vy: D.scroll, r: 9 * S, color: 'bomb', dmg: 2, t: 0, dead: false });
 }
 
 function fireFan(x, y, center, count, spread, speed, color) {
@@ -1297,9 +2353,50 @@ function killEnemy(e) {
   e.dead = true;
   kills++;
   addScore(e.score);
-  explode(e.x, e.y, e.w * 1.5);
-  playSfx(SFX.boom, 90);
-  if (Math.random() < 0.06) spawnPickup(Math.random() < 0.55 ? 'weapon' : 'health', e.x, e.y);
+  explode(e.x, e.y, Math.max(e.w, e.h) * (e.kind === 'bomber' ? 1.2 : 1.5));
+  playSfx(e.maxHp >= 4 ? SFX.boomM : SFX.boomS, 90);
+  if (e.kind === 'bomber') {           // usually a star for taking down the big one, rarely a crate
+    const roll = Math.random();
+    if (roll < 0.55) spawnPickup('star', e.x, e.y);
+    else if (roll < 0.7) spawnPickup(Math.random() < 0.5 ? 'weapon' : 'health', e.x, e.y);
+  } else if (e.kind === 'transport') { // one item spills out
+    spawnPickup(Math.random() < 0.6 ? 'star' : Math.random() < 0.5 ? 'weapon' : 'health', e.x, e.y);
+  } else if (e.kind !== 'missile' && Math.random() < 0.06) {
+    spawnPickup(Math.random() < 0.55 ? 'weapon' : 'health', e.x, e.y);
+  }
+}
+
+// Bosses launch these in pairs: slow to start, they bend toward the plane and can be shot down.
+function launchMissiles(b, count) {
+  if (enemies.length > 18) return;
+  for (let i = 0; i < count; i++) {
+    const k = i - (count - 1) / 2;
+    const e = makeEnemy('missile', b.x + k * b.w * 0.45, b.y + b.h * 0.25, 16 * S);
+    e.a = Math.PI / 2 + k * 0.7;
+    enemies.push(e);
+    sparks(e.x, e.y, 4, '#ffd27a', 120 * S);
+  }
+  playSfx(SFX.missile);
+}
+
+// Fires `count` aimed shots in quick succession, then waits `gap` seconds before the next burst.
+function burstFire(e, dt, count, step, gap, color, speed, dmg) {
+  if (e.burst > 0) {
+    e.burstCd -= dt;
+    if (e.burstCd <= 0) {
+      e.burstCd = step;
+      e.burst--;
+      const y = e.y + e.h * 0.2;
+      fireShot(e.x, y, aimAtPlayer(e.x, y), speed * S * D.shotSpeed, 6 * S, color, dmg || 1);
+    }
+    return;
+  }
+  e.fire -= dt;
+  if (e.fire <= 0) {
+    e.fire = gap * D.cooldown;
+    e.burst = count;
+    e.burstCd = 0;
+  }
 }
 
 function updateEnemies(dt) {
@@ -1308,34 +2405,94 @@ function updateEnemies(dt) {
     e.t += dt;
     e.flash = Math.max(0, e.flash - dt);
     e.y += e.vy * dt;
+    e.x += e.vx * dt;
+
+    // movement
     if (e.kind === 'weaver') {
       e.x = e.baseX + Math.sin(e.t * e.freq + e.phase) * e.amp;
     } else if (e.kind === 'kamikaze' && e.y < p.y) {
       const step = e.steer * dt;
       e.x += clamp(p.x - e.x, -step, step);
+    } else if (e.kind === 'heli') {
+      e.rotor += dt * 36;
+      if (e.hover > 0 && e.y >= e.hoverY) { // holds position, drifting a little
+        if (e.hoverT < 0) { // just arrived: the drift starts from where it is, so there is no jump
+          e.hoverT = 0;
+          e.baseX = e.x;
+          e.amp = Math.min(50 * S, e.x - e.w * 0.6, W - e.w * 0.6 - e.x); // never past the screen edge
+        }
+        e.y = e.hoverY;
+        e.vy = 0;
+        e.hover -= dt;
+        e.hoverT += dt;
+        e.x = e.baseX + Math.sin(e.hoverT * e.drift) * Math.max(0, e.amp);
+      } else if (e.hover <= 0) {
+        e.vy = Math.min(e.vy + 320 * S * dt, 280 * S); // then dives on past
+      }
+    } else if (e.kind === 'missile') {
+      e.life -= dt;
+      if (e.life <= 0) { e.dead = true; explode(e.x, e.y, e.h); continue; }
+      if (p.alive) e.a = turnToward(e.a, aimAtPlayer(e.x, e.y), e.turn * dt);
+      e.x += Math.cos(e.a) * e.speed * dt;
+      e.y += Math.sin(e.a) * e.speed * dt;
+      e.puff -= dt;
+      if (e.puff <= 0) {
+        e.puff = 0.05;
+        smoke(e.x - Math.cos(e.a) * e.h * 0.5, e.y - Math.sin(e.a) * e.h * 0.5, 7 * S, 0.4);
+      }
     }
 
-    if (e.kind !== 'kamikaze' && p.alive && e.y > 0 && e.y < H * 0.72) {
-      e.fire -= dt;
-      if (e.fire <= 0) {
-        const fromY = e.y + e.h * 0.45;
-        if (e.kind === 'sniper') {
-          fireShot(e.x, fromY, aimAtPlayer(e.x, fromY), 250 * S * D.shotSpeed, 6 * S, 'magenta', 1);
-          e.fire = rand(1.4, 2.2) * D.cooldown;
-        } else {
-          fireShot(e.x, fromY, Math.PI / 2, 300 * S * D.shotSpeed, 6 * S, 'orange', 1);
-          e.fire = rand(1, 2) * D.cooldown;
+    // guns
+    const onScreen = e.x > 0 && e.x < W && e.y > 0 && e.y < H * 0.72;
+    if (p.alive && onScreen) {
+      if (e.kind === 'heli') {
+        burstFire(e, dt, 3, 0.12, rand(1.8, 2.6), 'flame', 280, 0.5); // half damage: a nuisance, not a killer
+      } else if (e.kind === 'interceptor') {
+        e.fire -= dt;
+        if (e.fire <= 0) {
+          fireShot(e.x, e.y + e.h * 0.3, Math.PI / 2, 360 * S * D.shotSpeed, 6 * S, 'laser', 1);
+          playSfx(SFX.laser, 150);
+          e.fire = rand(0.35, 0.6) * D.cooldown;
+        }
+      } else if (e.kind === 'bomber') {
+        e.fire -= dt;
+        if (e.fire <= 0 && e.y < H * 0.55) {
+          dropBomb(e.x + rand(-0.45, 0.45) * e.w, e.y + e.h * 0.2);
+          playSfx(SFX.bomb, 700);
+          e.fire = rand(1.4, 2.4) * D.cooldown;
+        }
+      } else if (e.kind === 'grunt' || e.kind === 'weaver' || e.kind === 'sniper') {
+        e.fire -= dt;
+        if (e.fire <= 0) {
+          const fromY = e.y + e.h * 0.45;
+          if (e.kind === 'sniper') {
+            fireShot(e.x, fromY, aimAtPlayer(e.x, fromY), 250 * S * D.shotSpeed, 6 * S, 'magenta', 1);
+            e.fire = rand(1.4, 2.2) * D.cooldown;
+          } else {
+            fireShot(e.x, fromY, Math.PI / 2, 300 * S * D.shotSpeed, 6 * S, 'orange', 1);
+            e.fire = rand(1, 2) * D.cooldown;
+          }
         }
       }
     }
 
-    if (e.y - e.h / 2 > H) {
+    // big aircraft trail smoke once they are badly hurt
+    if (e.maxHp >= 4 && e.hp <= e.maxHp * 0.4 && e.kind !== 'missile') {
+      e.puff -= dt;
+      if (e.puff <= 0) {
+        e.puff = 0.09;
+        smoke(e.x + rand(-0.25, 0.25) * e.w, e.y - e.h * 0.3, 8 * S, 0.55);
+      }
+    }
+
+    const gone = e.y - e.h / 2 > H || e.x < -e.w * 1.5 || e.x > W + e.w * 1.5 || e.y < -e.h * 4;
+    if (gone) {
       e.dead = true;
     } else if (p.alive && hitRects(e.x, e.y, e.w * 0.32, e.h * 0.36, p.x, p.y, p.w * PLAYER_HW, p.h * PLAYER_HH)) {
       e.dead = true;
-      explode(e.x, e.y, e.w * 1.5);
-      playSfx(SFX.boom, 90);
-      damagePlayer(2);
+      explode(e.x, e.y, Math.max(e.w, e.h) * (e.light ? 0.7 : 1.2));
+      playSfx(SFX.boomS, 90);
+      damagePlayer(e.kind === 'missile' ? 1 : 2);
     }
   }
 }
@@ -1344,6 +2501,48 @@ function updateTanks(dt) {
   const p = player;
   for (const t of tanks) {
     t.flash = Math.max(0, t.flash - dt);
+    if (isBoat(t)) {
+      t.t += dt;
+      t.y += D.scroll * 0.8 * dt;               // sailing against the scroll, so it lags the water a little
+      t.x += Math.sin(t.t * 0.7) * 12 * S * dt; // a gentle roll
+      for (const g of t.guns) { // the small AA mounts swing round faster than the big guns
+        g.a = turnToward(g.a, aimAtPlayer(t.x + g.x * t.w, t.y + g.y * t.h), (g.main ? 2.4 : 4) * dt);
+      }
+      if (p.alive && t.y > 0 && t.y < H * 0.85) {
+        t.fire -= dt;
+        if (t.fire <= 0) { // the guns take turns
+          const g = t.guns[t.gun];
+          const reach = t.w * (g.main ? 0.5 : 0.3); // barrel length, so the shot leaves the muzzle
+          const mx = t.x + g.x * t.w + Math.cos(g.a) * reach, my = t.y + g.y * t.h + Math.sin(g.a) * reach;
+          if (g.main) {
+            fireShot(mx, my, g.a, 240 * S * (1 + Math.min(elapsed / 400, 0.4)), 8 * S, 'ball', 1);
+            sparks(mx, my, 4, '#ffe14d', 120 * S);
+            playSfx(SFX.cannon, 150);
+          } else {
+            fireShot(mx, my, g.a, 340 * S, 4.5 * S, 'ball', 1);
+            sparks(mx, my, 2, '#ffe14d', 80 * S);
+            playSfx(SFX.mg, 90);
+          }
+          t.gun = (t.gun + 1) % t.guns.length;
+          const next = t.guns[t.gun];
+          t.fire = Math.max(0.9, 1.7 - elapsed / 300) * (next.main ? 1 : 0.5);
+        }
+      }
+      if (t.y - t.h / 2 > H) t.dead = true;
+      continue;
+    }
+    if (isOutpost(t)) {
+      t.y += D.scroll * dt;
+      if (p.alive && t.y > t.h / 2 && t.y < H * 0.8) {
+        t.fire -= dt;
+        if (t.fire <= 0) {
+          launchOutpostMissile(t);
+          t.fire = rand(3, 4.5);
+        }
+      }
+      if (t.y - t.h / 2 > H) t.dead = true;
+      continue;
+    }
     t.y += D.scroll * dt; // tanks sit on the ground, so they move with it
     t.turret = turnToward(t.turret, aimAtPlayer(t.x, t.y), 3 * dt);
     if (p.alive && t.y > 0 && t.y < H * 0.85) {
@@ -1352,6 +2551,7 @@ function updateTanks(dt) {
         const reach = t.w * 0.9;
         const speed = 330 * S * (1 + Math.min(elapsed / 400, 0.5));
         fireShot(t.x + Math.cos(t.turret) * reach, t.y + Math.sin(t.turret) * reach, t.turret, speed, 6 * S, 'red', 1);
+        playSfx(SFX.cannon, 200);
         t.fire = Math.max(0.8, 1.6 - elapsed / 300);
       }
     }
@@ -1365,7 +2565,119 @@ function bossName(def, index) {
   return def.name + (tier ? ' MK ' + roman(tier + 1) : '');
 }
 
+// ---------- Clouds ----------
+// Two layers of cloud give the flat ground some depth. Low clouds drift between the ground
+// and the aircraft, hiding tanks and shadows for a moment; high clouds pass over everything.
+// Each layer scrolls faster than the ground, as nearer things do, which reads as altitude.
+//   speed - scroll speed as a multiple of the ground speed
+//   alpha - opacity range; high clouds stay thin so the player and bullets are always readable
+//   size  - width range, as a fraction of the screen width (capped so desktops do not get giants)
+//   every - seconds between random spawns
+//   max   - random spawns never stack more than this many on screen
+const CLOUD = {
+  low:  { speed: 1.5, alpha: [0.7, 0.9],  size: [0.3, 0.55], every: [3, 7],   max: 3 },
+  high: { speed: 2.2, alpha: [0.5, 0.65], size: [0.5, 0.85], every: [10, 22], max: 2 }
+};
+
+function spawnCloud(layer, y) {
+  if (!SPR.cloud) return null;
+  const c = CLOUD[layer];
+  const ref = Math.min(W, 720);
+  const w = ref * rand(c.size[0], c.size[1]);
+  const h = w * SPR.cloud.height / SPR.cloud.width;
+  const cloud = {
+    layer, w, h,
+    x: rand(-w * 0.2, W + w * 0.2),
+    y: y === undefined ? -h / 2 : y,
+    vx: rand(-10, 10) * (layer === 'high' ? 1.8 : 1), // a little side wind, more up high
+    speed: c.speed * rand(0.92, 1.08),
+    alpha: rand(c.alpha[0], c.alpha[1]),
+    flip: Math.random() < 0.5,
+    dead: false
+  };
+  clouds.push(cloud);
+  return cloud;
+}
+
+function cloudCount(layer) {
+  let n = 0;
+  for (const c of clouds) if (c.layer === layer) n++;
+  return n;
+}
+
+// A run starts with a few low clouds already on screen, so the sky is never empty.
+function seedClouds() {
+  clouds = [];
+  cloudTimer = { low: rand(1.5, 3), high: rand(6, 12) };
+  for (let i = 0; i < 2; i++) spawnCloud('low', rand(H * 0.1, H * 0.6));
+}
+
+// A bank of high cloud rolls in during the boss warning: two staggered rows, slower than a
+// passing cloud, so the back row still covers the top of the screen when the boss flies out of it.
+function cloudFront() {
+  const n = W > 700 ? 4 : 3;
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < n; i++) {
+      const c = spawnCloud('high');
+      if (!c) return;
+      c.x = (i + 0.5 + row * 0.5) * W / n + rand(-W * 0.08, W * 0.08);
+      c.y -= rand(0, 60 * S) + row * 240 * S;
+      c.speed = CLOUD.high.speed * 0.75;
+      c.alpha = rand(0.6, 0.75);
+    }
+  }
+  cloudTimer.high = rand(14, 22); // the sky stays clear for a while after the front
+}
+
+// A puff of cloud over a background cross-fade, so a new biome feels flown into rather than switched.
+function cloudBurst() {
+  for (let i = 0; i < 2; i++) {
+    const c = spawnCloud('low');
+    if (c) c.y -= i * 90 * S;
+  }
+  const hi = spawnCloud('high');
+  if (hi) hi.alpha = 0.4;
+  cloudTimer.low = rand(4, 7);
+}
+
+function updateClouds(dt) {
+  for (const c of clouds) {
+    c.y += D.scroll * c.speed * dt;
+    c.x += c.vx * dt;
+    if (c.y - c.h / 2 > H) c.dead = true;
+  }
+  alive(clouds);
+  if (state !== 'playing') return;
+  for (const layer in CLOUD) {
+    cloudTimer[layer] -= dt;
+    if (cloudTimer[layer] > 0) continue;
+    const c = CLOUD[layer];
+    cloudTimer[layer] = rand(c.every[0], c.every[1]);
+    // boss fights are busy enough: no random high cloud over the arena, only the front that announced it
+    if (layer === 'high' && boss) continue;
+    if (cloudCount(layer) < c.max + (W > 900 ? 1 : 0)) spawnCloud(layer); // wide screens hold one more
+  }
+}
+
+function drawClouds(layer) {
+  if (!SPR.cloud) return;
+  if (layer === 'low') { // shadows first, so no cloud shades another cloud
+    for (const c of clouds) {
+      if (c.layer !== layer) continue;
+      ctx.globalAlpha = c.alpha * 0.25;
+      ctx.drawImage(c.flip ? SPR.cloud_fs : SPR.cloud_s, c.x - c.w / 2 + 18 * S, c.y - c.h / 2 + 32 * S, c.w, c.h);
+    }
+  }
+  for (const c of clouds) {
+    if (c.layer !== layer) continue;
+    ctx.globalAlpha = c.alpha;
+    ctx.drawImage(c.flip ? SPR.cloud_f : SPR.cloud, c.x - c.w / 2, c.y - c.h / 2, c.w, c.h);
+  }
+  ctx.globalAlpha = 1;
+}
+
 function spawnBoss() {
+  switchMusic('boss');
   const def = BOSSES[bossIndex % BOSSES.length];
   const tier = Math.floor(bossIndex / BOSSES.length);
   const w = def.w * S, h = def.h * S;
@@ -1382,8 +2694,8 @@ function spawnBoss() {
     cd: Math.max(0.6, 1 - tier * 0.12), // attack cooldown multiplier
     shot: 1 + tier * 0.12,              // bullet speed multiplier
     a: 1.2, b: 2.5, c: 5,               // attack timers
-    spin: 0, burst: 0, burstCd: 0,
-    turret: Math.PI / 2,
+    spin: 0, burst: 0, burstCd: 0, m: 4,
+    turret: Math.PI / 2, rotor: 0,
     laser: null,
     phase: 1, enraged: false,
     flash: 0, dieT: 0, boomCd: 0
@@ -1455,6 +2767,13 @@ const BOSS_AI = {
       b.b = (b.enraged ? 1.1 : 1.6) * cd;
       fireShot(b.x, y, aimAtPlayer(b.x, y), 290 * S * b.shot, 7 * S, 'orange', 1);
     }
+    if (b.enraged) { // homing missiles once it is hurt
+      b.m -= dt;
+      if (b.m <= 0) {
+        b.m = 3.5 * cd;
+        launchMissiles(b, 2);
+      }
+    }
   },
 
   // Ground fortress: a tracking cannon with heavy shells, bullet rings and escort tanks.
@@ -1470,6 +2789,7 @@ const BOSS_AI = {
         fireShot(b.x + Math.cos(b.turret) * reach, b.y + Math.sin(b.turret) * reach, a, 360 * S * b.shot, 10 * S, 'shell', 2);
       }
       sparks(b.x + Math.cos(b.turret) * reach, b.y + Math.sin(b.turret) * reach, 5, '#ffe14d', 160 * S);
+      playSfx(SFX.cannon);
     }
     b.b -= dt;
     if (b.b <= 0) {
@@ -1480,6 +2800,56 @@ const BOSS_AI = {
     if (b.c <= 0) {
       b.c = 6 * cd;
       if (tanks.length < 4) spawnTank(rand(0, W));
+    }
+  },
+
+  // Helicopter gunship: sweeps the top of the screen with minigun bursts and rocket pods, and
+  // every so often drops into a low strafing pass before climbing back.
+  gunship(b, dt, cd) {
+    if (b.sub === 'pass') {
+      b.subT -= dt;
+      b.y = Math.min(b.y + 260 * S * dt, b.homeY + H * 0.28);
+      b.burstCd -= dt;
+      if (b.burstCd <= 0) {
+        b.burstCd = 0.2;
+        fireFan(b.x, b.y + b.h * 0.3, Math.PI / 2, 5, 0.9, 230 * S * b.shot, 'orange');
+      }
+      if (b.subT <= 0) b.sub = 'climb';
+      return;
+    }
+    if (b.sub === 'climb') {
+      b.y -= 300 * S * dt;
+      if (b.y <= b.homeY) { b.y = b.homeY; b.sub = null; }
+      return;
+    }
+    sweepBoss(b, 85 * S, dt);
+    const y = b.y + b.h * 0.3;
+    b.a -= dt;
+    if (b.a <= 0) {
+      b.a = 2.4 * cd;
+      b.burst = b.enraged ? 8 : 6;
+      b.burstCd = 0;
+    }
+    if (b.burst > 0) { // minigun: a fast burst that alternates sides and scatters a little
+      b.burstCd -= dt;
+      if (b.burstCd <= 0) {
+        b.burstCd = 0.09;
+        b.burst--;
+        const gx = b.x + (b.burst % 2 ? -1 : 1) * b.w * 0.3;
+        fireShot(gx, y, aimAtPlayer(gx, y) + rand(-0.08, 0.08), 320 * S * b.shot, 6 * S, 'flame', 1);
+      }
+    }
+    b.b -= dt;
+    if (b.b <= 0) {
+      b.b = (b.enraged ? 3.5 : 5) * cd;
+      launchMissiles(b, 2);
+    }
+    b.c -= dt;
+    if (b.c <= 0) {
+      b.c = 8 * cd;
+      b.sub = 'pass';
+      b.subT = 1.6;
+      b.burstCd = 0;
     }
   },
 
@@ -1560,6 +2930,13 @@ const BOSS_AI = {
         fireShot(b.x, y, aimAtPlayer(b.x, y), 300 * S * b.shot, 7 * S, 'orange', 1);
       }
     }
+    if (phase === 3) {
+      b.m -= dt;
+      if (b.m <= 0) {
+        b.m = 4.5 * cd;
+        launchMissiles(b, 2);
+      }
+    }
     if (phase >= 2) {
       b.c -= dt;
       if (b.c <= 0) {
@@ -1583,13 +2960,17 @@ function damageBoss(b, amount) {
     s.dead = true;
     sparks(s.x, s.y, 1, SHOT_COLORS[s.color], 80 * S);
   }
-  score += b.def.score * (b.tier + 1);
-  showBanner(b.name + ' DESTROYED', '+' + b.def.score * (b.tier + 1), '#4cd964', 2.2);
+  for (const e of enemies) if (e.kind === 'missile') e.dead = true; // its missiles die with it
+  const reward = Math.round(b.def.score * (b.tier + 1) * (perk('score') || 1));
+  score += reward;
+  showBanner(b.name + ' DESTROYED', '+' + reward, '#4cd964', 2.2);
 }
 
 function finishBoss(b) {
   explode(b.x, b.y, Math.max(b.w, b.h) * 1.7, true);
-  playSfx(SFX.bigBoom);
+  playSfx(SFX.boomL);
+  playSfx(SFX.jingleVictory);
+  switchMusic('game');
   shake = 18;
   spawnPickup('health', b.x - 34 * S, b.y);
   spawnPickup('weapon', b.x + 34 * S, b.y);
@@ -1602,10 +2983,12 @@ function finishBoss(b) {
 }
 
 function unlockPlane(index) {
-  if (index >= PLANES.length || index < unlockedPlanes) return;
+  if (index >= FREE_PLANES || index < unlockedPlanes) return;
   unlockedPlanes = index + 1;
   writeStore('planeCrashUnlocked', String(unlockedPlanes));
+  refreshShopUi(); // the offer strip lists what is still locked
   unlockedThisRun = PLANES[index].name;
+  playSfx(SFX.extraLife);
   showBanner('NEW PLANE UNLOCKED', PLANES[index].name, '#32e0ff', 2.6);
 }
 
@@ -1614,12 +2997,14 @@ function nextBackground() {
   const to = (bgIndex + 1) % BG_FILES.length;
   bgFade = { from: bgIndex, to, t: 0 };
   bgIndex = to;
+  cloudBurst();
 }
 
 function updateBoss(dt) {
   const b = boss;
   if (!b) return;
   b.flash = Math.max(0, b.flash - dt);
+  if (b.def.heli) b.rotor += dt * (b.enraged ? 44 : 34); // keeps turning while entering and dying too
 
   if (b.mode === 'enter') {
     b.y = Math.min(b.homeY, b.y + 150 * S * dt);
@@ -1632,7 +3017,7 @@ function updateBoss(dt) {
     if (b.boomCd <= 0) {
       b.boomCd = 0.12;
       explode(b.x + rand(-0.4, 0.4) * b.w, b.y + rand(-0.35, 0.35) * b.h, b.w * rand(0.4, 0.8));
-      playSfx(SFX.boom, 90);
+      playSfx(SFX.boomS, 90);
     }
     if (b.dieT <= 0) finishBoss(b);
     return;
@@ -1656,51 +3041,107 @@ function updateBoss(dt) {
 function updateBullets(dt) {
   const b = boss;
   for (const s of bullets) {
+    if (s.homing) steerRocket(s, dt);
+    if (s.dead) continue;
     s.x += s.vx * dt;
     s.y += s.vy * dt;
-    if (s.y < -30 || s.x < -30 || s.x > W + 30) {
+    if (s.y < -30 || s.x < -30 || s.x > W + 30 || s.y > H + 30) {
       s.dead = true;
       continue;
     }
     const hw = s.w / 2, hh = s.h / 2;
+    const dmg = s.dmg || 1;
 
     for (const e of enemies) {
       if (e.dead || !hitRects(s.x, s.y, hw, hh, e.x, e.y, e.w * 0.42, e.h * 0.42)) continue;
       s.dead = true;
-      e.hp--;
+      e.hp -= dmg;
       e.flash = 0.07;
       if (e.hp <= 0) killEnemy(e);
+      else playSfx(SFX.hit, 70);
       break;
     }
-    if (s.dead) { sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S); continue; }
+    if (s.dead) { bulletHit(s); continue; }
 
     for (const t of tanks) {
       if (t.dead || !hitRects(s.x, s.y, hw, hh, t.x, t.y, t.w * 0.45, t.h * 0.45)) continue;
       s.dead = true;
-      t.hp--;
+      t.hp -= dmg;
       t.flash = 0.07;
       if (t.hp <= 0) {
         t.dead = true;
         kills++;
-        addScore(20);
-        explode(t.x, t.y, t.h * 1.4);
-        playSfx(SFX.boom, 90);
+        addScore(isBoat(t) ? BOATS[t.kind].score : isOutpost(t) ? 50 : 20);
+        if (isOutpost(t) && Math.random() < 0.5) spawnPickup('star', t.x, t.y);
+        if (t.kind === 'destroyer') { // long hull: it goes up bow and stern, and usually drops a star
+          explode(t.x, t.y - t.h * 0.25, t.w * 3);
+          explode(t.x, t.y + t.h * 0.25, t.w * 3);
+          if (Math.random() < 0.6) spawnPickup('star', t.x, t.y);
+          playSfx(SFX.boomL);
+        } else {
+          explode(t.x, t.y, Math.min(t.h, t.w * 2.6) * 1.4);
+          playSfx(SFX.boomM, 90);
+        }
+      } else {
+        playSfx(SFX.hit, 70);
       }
       break;
     }
-    if (s.dead) { sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S); continue; }
+    if (s.dead) { bulletHit(s); continue; }
 
     if (b && b.mode === 'fight' && hitRects(s.x, s.y, hw, hh, b.x, b.y, b.w * b.def.hbw, b.h * b.def.hbh)) {
       s.dead = true;
-      sparks(s.x, s.y - hh, 2, '#fff3b0', 120 * S);
-      damageBoss(b, 1);
+      bulletHit(s);
+      playSfx(SFX.hit, 90);
+      damageBoss(b, dmg);
     }
   }
+}
+
+function bulletHit(s) {
+  if (s.homing) explode(s.x, s.y, 34 * S);
+  else sparks(s.x, s.y - s.h / 2, 2, '#fff3b0', 120 * S);
+}
+
+// Rockets leave the wings slowly, then accelerate and bend toward whatever is nearest ahead.
+function steerRocket(s, dt) {
+  s.life -= dt;
+  if (s.life <= 0) { s.dead = true; explode(s.x, s.y, 30 * S); return; }
+  const tgt = nearestTarget(s.x, s.y);
+  let a = Math.atan2(s.vy, s.vx);
+  if (tgt) a = turnToward(a, Math.atan2(tgt.y - s.y, tgt.x - s.x), 3.5 * dt);
+  const v = Math.min(s.speed, Math.hypot(s.vx, s.vy) + 1100 * S * dt);
+  s.vx = Math.cos(a) * v;
+  s.vy = Math.sin(a) * v;
+  s.rot = a + Math.PI / 2;
+  s.puff -= dt;
+  if (s.puff <= 0) {
+    s.puff = 0.04;
+    smoke(s.x - Math.cos(a) * s.h * 0.5, s.y - Math.sin(a) * s.h * 0.5, 6 * S, 0.35);
+  }
+}
+
+function nearestTarget(x, y) {
+  let best = null, bestD = Infinity;
+  const consider = (o, ok) => {
+    if (!ok) return;
+    const d = (o.x - x) * (o.x - x) + (o.y - y) * (o.y - y);
+    if (d < bestD) { bestD = d; best = o; }
+  };
+  for (const e of enemies) consider(e, !e.dead && e.y > -e.h / 2 && e.y < y + 40 * S);
+  for (const t of tanks) consider(t, !t.dead && t.y > 0 && t.y < y + 40 * S);
+  if (boss && boss.mode === 'fight') consider(boss, true);
+  return best;
 }
 
 function updateShots(dt) {
   const p = player;
   for (const s of shots) {
+    if (s.color === 'bomb') { // falls for about a second, then rides the ground scroll off the screen
+      s.t += dt;
+      s.vy = D.scroll + 160 * S * Math.max(0, 1 - s.t / 1.1);
+      s.vx *= Math.max(0, 1 - dt * 1.6);
+    }
     s.x += s.vx * dt;
     s.y += s.vy * dt;
     if (s.x < -40 || s.x > W + 40 || s.y < -40 || s.y > H + 40) {
@@ -1715,25 +3156,48 @@ function updateShots(dt) {
 
 function updatePickups(dt) {
   const p = player;
+  const magnet = perk('magnet');
   for (const k of pickups) {
     k.t += dt;
     k.y += 110 * S * dt;
+    if (magnet && p.alive) { // Wraith: pick-ups nearby drift to the plane
+      const dx = p.x - k.x, dy = p.y - k.y, d = Math.hypot(dx, dy);
+      if (d > 1 && d < magnet * S) {
+        const v = Math.min(d, 280 * S * dt);
+        k.x += dx / d * v;
+        k.y += dy / d * v;
+      }
+    }
     if (k.y - k.r > H) {
       k.dead = true;
     } else if (p.alive && hitCircleRect(k.x, k.y, k.r, p.x, p.y, p.w * 0.4, p.h * 0.4)) {
       k.dead = true;
       if (k.kind === 'weapon') {
-        p.weapon = Math.min(3, p.weapon + 1);
+        playSfx(SFX.powerup);
+        if (p.weapon < 3) {
+          p.weapon++;
+          floatText(p.x, p.y - p.h * 0.6, p.weapon === 2 ? 'TWIN CANNONS' : 'SPREAD SHOT', '#32e0ff');
+        } else { // already at full spread: this crate arms the rocket pods
+          p.rockets = ROCKET_TIME;
+          floatText(p.x, p.y - p.h * 0.6, 'ROCKET PODS', '#ff9f1a');
+        }
         p.weaponTimer = WEAPON_TIME;
-        floatText(p.x, p.y - p.h * 0.6, p.weapon === 2 ? 'TWIN CANNONS' : 'SPREAD SHOT', '#32e0ff');
+      } else if (k.kind === 'star') {
+        const bonus = Math.round(100 * (1 + (level - 1) * 0.15) * (perk('score') || 1) / 5) * 5;
+        score += bonus;
+        playSfx(SFX.star);
+        floatText(p.x, p.y - p.h * 0.6, '\u2605 +' + bonus, '#ffd60a');
       } else if (p.hp < p.maxHp) {
         p.hp = Math.min(p.maxHp, p.hp + 2);
+        playSfx(SFX.health);
         floatText(p.x, p.y - p.h * 0.6, '+2 HEALTH', '#4cd964');
       } else {
-        score += 50;
-        floatText(p.x, p.y - p.h * 0.6, '+50', '#ffd60a');
+        const bonus = Math.round(50 * (perk('score') || 1));
+        score += bonus;
+        playSfx(SFX.star);
+        floatText(p.x, p.y - p.h * 0.6, '+' + bonus, '#ffd60a');
       }
-      sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : '#4cd964', 200 * S);
+      sparks(k.x, k.y, 8, k.kind === 'weapon' ? '#32e0ff' : k.kind === 'star' ? '#ffd60a' : '#4cd964', 200 * S);
     }
   }
 }
@@ -1787,6 +3251,7 @@ function update(dt) {
   updateShots(dt);
   updatePickups(dt);
   updateEffects(dt);
+  updateClouds(dt);
 
   alive(bullets); alive(enemies); alive(tanks); alive(shots); alive(pickups);
   alive(explosions); alive(particles); alive(texts);
@@ -1844,12 +3309,108 @@ function drawSprite(key, x, y, w, h, flash) {
   }
 }
 
-function drawShadow(key, x, y, w, h) {
+function drawShadow(key, x, y, w, h, angle) {
   const spr = SPR[key + '_s'];
   if (!spr) return;
   ctx.globalAlpha = 0.22;
-  ctx.drawImage(spr, x - w * 0.4 + 16 * S, y - h * 0.4 + 26 * S, w * 0.8, h * 0.8);
+  if (angle) {
+    ctx.save();
+    ctx.translate(x + 16 * S, y + 26 * S);
+    ctx.rotate(angle);
+    ctx.drawImage(spr, -w * 0.4, -h * 0.4, w * 0.8, h * 0.8);
+    ctx.restore();
+  } else {
+    ctx.drawImage(spr, x - w * 0.4 + 16 * S, y - h * 0.4 + 26 * S, w * 0.8, h * 0.8);
+  }
   ctx.globalAlpha = 1;
+}
+
+function drawRotated(key, x, y, w, h, angle, flash) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  drawSprite(key, 0, 0, w, h, flash);
+  ctx.restore();
+}
+
+// Sprites face straight down; craft that fly at an angle are turned to match their heading.
+function enemyAngle(e) {
+  if (e.kind === 'missile') return Math.atan2(-Math.cos(e.a), Math.sin(e.a));
+  if (e.kind === 'interceptor') return Math.atan2(-e.vx, e.vy);
+  return 0;
+}
+
+function drawEnemy(e) {
+  const angle = enemyAngle(e);
+  if (angle) {
+    drawRotated(e.sprite, e.x, e.y, e.w, e.h, angle, e.flash);
+    if (e.kind === 'missile' && SPR.thrusterB) { // exhaust at the tail
+      ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(angle + Math.PI);
+      ctx.drawImage(SPR.thrusterB, -3 * S, e.h / 2 - 3 * S, 6 * S, 10 * S);
+      ctx.restore();
+    }
+  } else {
+    drawSprite(e.sprite, e.x, e.y, e.w, e.h, e.flash);
+    if (e.kind === 'heli' && SPR.rotor) { // the rotor disc spins, and the blades flicker as they pass
+      const spr = Math.floor(clock * 24) % 2 ? SPR.rotor2 : SPR.rotor;
+      const d = e.w * 1.6;
+      ctx.save();
+      ctx.translate(e.x, e.y + e.h * 0.12);
+      ctx.rotate(e.rotor);
+      ctx.globalAlpha = 0.8;
+      ctx.drawImage(spr, -d / 2, -d / 2, d, d);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (e.hp < e.maxHp && e.kind !== 'missile') drawSmallBar(e.x, e.y - e.h / 2 - 6, e.w * 0.6, e.hp / e.maxHp);
+}
+
+function drawBullet(s) {
+  const spr = SPR[s.key] || SPR.bolt_yellow;
+  if (!spr) return;
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  if (s.rot) ctx.rotate(s.rot);
+  const glow = SPR[s.key + '_g'];
+  if (glow) { // neon halo, added to whatever is underneath so it reads on any background
+    const gw = s.w * glow.width / spr.width, gh = s.h * glow.height / spr.height;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(glow, -gw / 2, -gh / 2, gw, gh);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.drawImage(spr, -s.w / 2, -s.h / 2, s.w, s.h);
+  if (s.homing && SPR.thrusterB) ctx.drawImage(SPR.thrusterB, -3 * S, s.h / 2 - 2 * S, 6 * S, 10 * S);
+  ctx.restore();
+}
+
+function drawShot(s) {
+  const m = SHOT_SPRITES[s.color];
+  const spr = m && SPR[m[0]];
+  if (!spr) {
+    const d = s.r * 2.6;
+    ctx.drawImage(SPR['orb_' + s.color], s.x - d / 2, s.y - d / 2, d, d);
+    return;
+  }
+  const k = s.color === 'bomb' ? 1.3 - 0.5 * Math.min(1, s.t / 1.1) : 1; // a falling bomb shrinks toward the ground
+  const w = s.r * m[2] * k, h = w * spr.height / spr.width;
+  if (!m[1]) { ctx.drawImage(spr, s.x - w / 2, s.y - h / 2, w, h); return; }
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.a + Math.PI / 2);
+  ctx.drawImage(spr, -w / 2, -h / 2, w, h);
+  if (s.color === 'shell') { // the Goliath's shells are rocket-assisted: a flickering flame at the tail
+    const jet = Math.floor(clock * 30) % 2 ? SPR.thrusterA : SPR.thrusterB;
+    if (jet) {
+      const fh = h * (0.7 + 0.15 * Math.sin(clock * 60)), fw = w * 0.7;
+      ctx.drawImage(jet, -fw / 2, h / 2 - fh * 0.15, fw, fh);
+    }
+  }
+  ctx.restore();
 }
 
 function drawTurret(spr, x, y, bodyW, angle) {
@@ -1859,6 +3420,36 @@ function drawTurret(spr, x, y, bodyW, angle) {
   ctx.translate(x, y);
   ctx.rotate(angle + Math.PI / 2);
   ctx.drawImage(spr, -TURRET.r * spr.k * k, -TURRET.cy * spr.k * k, spr.width * k, spr.height * k);
+  ctx.restore();
+}
+
+// A boat: its wake (an animated strip, top edge on the bow so the foam trails off the stern), the
+// hull, swapped for the scorched one once it is badly hurt, then each gun turned to its aim.
+function drawBoat(t) {
+  const B = BOATS[t.kind];
+  const frames = SPR['wake_' + t.kind];
+  if (frames) {
+    const f = frames[Math.floor(t.t * 8) % frames.length];
+    const [, , fw, fh] = BOAT_SHEET['wake_' + t.kind], [, , bw, bh] = BOAT_SHEET[t.kind];
+    const w = t.w * fw / bw, h = t.h * fh / bh;
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(f, t.x - w / 2, t.y - t.h / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
+  const hurt = t.hp <= t.hp0 * 0.4 && SPR[t.kind + '_dmg'];
+  drawSprite(hurt ? t.kind + '_dmg' : t.kind, t.x, t.y, t.w, t.h, t.flash);
+  for (const g of t.guns) {
+    drawGun(g.main ? SPR.gunMain : SPR.gunAA, t.x + g.x * t.w, t.y + g.y * t.h, t.w * (g.main ? B.mainSize : B.aaSize), g.a);
+  }
+}
+
+// A boat gun sprite is drawn barrels-up and turns about its own centre.
+function drawGun(spr, x, y, size, angle) {
+  if (!spr) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI / 2);
+  ctx.drawImage(spr, -size / 2, -size / 2, size, size);
   ctx.restore();
 }
 
@@ -1886,6 +3477,17 @@ function drawAirBoss(b) {
     ctx.fillRect(b.x - b.w * 0.36, b.y, b.w * 0.72, H - b.y);
   }
   drawSprite(b.def.id, x, y, b.w, b.h, b.flash);
+  if (b.def.heli && SPR.rotor) { // the big rotor, same flicker trick as the small helicopters
+    const spr = Math.floor(clock * 24) % 2 ? SPR.rotor2 : SPR.rotor;
+    const d = b.w * 1.75;
+    ctx.save();
+    ctx.translate(x, y + b.h * 0.12);
+    ctx.rotate(b.rotor);
+    ctx.globalAlpha = 0.8;
+    ctx.drawImage(spr, -d / 2, -d / 2, d, d);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
   if (b.enraged && b.mode === 'fight' && SPR[b.def.id + '_w']) {
     ctx.globalAlpha = 0.1 + 0.08 * Math.sin(clock * 12);
     ctx.drawImage(SPR[b.def.id + '_w'], x - b.w / 2, y - b.h / 2, b.w, b.h);
@@ -1920,14 +3522,20 @@ function drawPlayer() {
   ctx.scale(1 - Math.abs(p.tilt) * 0.14, 1); // bank into the turn
 
   const flame = p.h * (0.16 + 0.05 * Math.sin(clock * 50));
-  ctx.fillStyle = 'rgba(255, 170, 40, 0.85)';
-  ctx.beginPath();
-  ctx.ellipse(0, p.h * 0.47 + flame / 2, p.w * 0.045, flame, 0, 0, TAU);
-  ctx.fill();
-  ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
-  ctx.beginPath();
-  ctx.ellipse(0, p.h * 0.47 + flame / 4, p.w * 0.022, flame / 2, 0, 0, TAU);
-  ctx.fill();
+  const jet = Math.floor(clock * 24) % 2 ? SPR.thrusterA : SPR.thrusterB;
+  if (jet) { // two flame frames swap quickly, which reads as a flicker
+    const fh = flame * 1.9, fw = fh * 0.42;
+    ctx.drawImage(jet, -fw / 2, p.h * 0.42, fw, fh);
+  } else {
+    ctx.fillStyle = 'rgba(255, 170, 40, 0.85)';
+    ctx.beginPath();
+    ctx.ellipse(0, p.h * 0.47 + flame / 2, p.w * 0.045, flame, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 245, 200, 0.9)';
+    ctx.beginPath();
+    ctx.ellipse(0, p.h * 0.47 + flame / 4, p.w * 0.022, flame / 2, 0, 0, TAU);
+    ctx.fill();
+  }
 
   drawSprite('player', 0, 0, p.w, p.h, 0);
   ctx.restore();
@@ -1966,9 +3574,17 @@ function drawHud() {
   roundRectPath(ctx, x - 2, y - 2, bw + 4, bh + 4, 6);
   ctx.fill();
   if (frac > 0) {
-    ctx.fillStyle = frac > 0.5 ? '#4cd964' : frac > 0.25 ? '#ffcc00' : '#ff3b30';
-    roundRectPath(ctx, x, y, bw * frac, bh, 4);
+    // the plane's own health, coloured by how much of it is left
+    const own = clamp(Math.min(p.hp, p.baseHp) / p.baseHp, 0, 1);
+    ctx.fillStyle = own > 0.5 ? '#4cd964' : own > 0.25 ? '#ffcc00' : '#ff3b30';
+    roundRectPath(ctx, x, y, bw * own * p.baseHp / p.maxHp, bh, 4);
     ctx.fill();
+    if (p.hp > p.baseHp) { // Armor Plating on top, in sky blue
+      const from = bw * p.baseHp / p.maxHp;
+      ctx.fillStyle = '#5ac8fa';
+      roundRectPath(ctx, x + from - 2, y, bw * frac - from + 2, bh, 4);
+      ctx.fill();
+    }
   }
   ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
   for (let i = 1; i < p.maxHp; i++) ctx.fillRect(x + bw * i / p.maxHp - 1, y, 2, bh);
@@ -1982,6 +3598,13 @@ function drawHud() {
     ctx.fillRect(x, 82, bw, 5);
     ctx.fillStyle = '#32e0ff';
     ctx.fillRect(x, 82, bw * wf, 5);
+  }
+  if (p.rockets > 0) {
+    const rf = clamp(p.rockets / ROCKET_TIME, 0, 1);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x, 90, bw, 5);
+    ctx.fillStyle = '#ff9f1a';
+    ctx.fillRect(x, 90, bw * rf, 5);
   }
 
   const b = boss;
@@ -2025,18 +3648,41 @@ function render() {
 
   // ground layer
   for (const t of tanks) {
-    drawSprite('tank', t.x, t.y, t.w, t.h, t.flash);
-    drawTurret(SPR.turret, t.x, t.y, t.w, t.turret);
+    if (isBoat(t)) {
+      drawBoat(t);
+    } else if (isOutpost(t)) {
+      drawSprite(t.kind, t.x, t.y, t.w, t.h, t.flash);
+    } else {
+      drawSprite('tank', t.x, t.y, t.w, t.h, t.flash);
+      drawTurret(SPR.turret, t.x, t.y, t.w, t.turret);
+    }
   }
   if (boss && boss.def.ground) drawGroundBoss(boss);
 
   // shadows the aircraft cast on the ground
-  for (const e of enemies) drawShadow(e.sprite, e.x, e.y, e.w, e.h);
+  for (const e of enemies) drawShadow(e.sprite, e.x, e.y, e.w, e.h, enemyAngle(e));
   if (boss && !boss.def.ground) drawShadow(boss.def.id, boss.x, boss.y, boss.w, boss.h);
   if (player.alive) drawShadow('player', player.x, player.y, player.w, player.h);
 
+  drawClouds('low'); // between the ground and everything that flies
+
   for (const k of pickups) {
     const pulse = 1 + 0.12 * Math.sin(k.t * 6);
+    if (k.kind === 'star') {
+      ctx.fillStyle = 'rgba(255, 214, 10, 0.3)';
+      ctx.beginPath();
+      ctx.arc(k.x, k.y, k.r * 1.3 * pulse, 0, TAU);
+      ctx.fill();
+      if (SPR.star) { // spins like a coin
+        const d = k.r * 2.2;
+        ctx.save();
+        ctx.translate(k.x, k.y);
+        ctx.scale(0.2 + 0.8 * Math.abs(Math.cos(k.t * 3)), 1);
+        ctx.drawImage(SPR.star, -d / 2, -d / 2, d, d);
+        ctx.restore();
+      }
+      continue;
+    }
     ctx.fillStyle = k.kind === 'weapon' ? 'rgba(50, 224, 255, 0.35)' : 'rgba(76, 217, 100, 0.35)';
     ctx.beginPath();
     ctx.arc(k.x, k.y, k.r * 1.25 * pulse, 0, TAU);
@@ -2045,28 +3691,31 @@ function render() {
     else drawSprite('health', k.x, k.y, k.r * 2.4, k.r * 2.4, 0);
   }
 
-  for (const e of enemies) {
-    drawSprite(e.sprite, e.x, e.y, e.w, e.h, e.flash);
-    if (e.hp < e.maxHp) drawSmallBar(e.x, e.y - e.h / 2 - 6, e.w * 0.6, e.hp / e.maxHp);
-  }
+  for (const e of enemies) drawEnemy(e);
   if (boss && !boss.def.ground) drawAirBoss(boss);
 
-  for (const s of bullets) ctx.drawImage(SPR[s.color], s.x - s.w * 0.75, s.y - s.h * 0.7, s.w * 1.5, s.h * 1.4);
+  for (const s of bullets) drawBullet(s);
   if (player.alive) drawPlayer();
 
   if (boss && boss.laser) drawLaser(boss);
-  for (const s of shots) {
-    const d = s.r * 2.6;
-    ctx.drawImage(SPR['orb_' + s.color], s.x - d / 2, s.y - d / 2, d, d);
-  }
+  for (const s of shots) drawShot(s);
 
   drawExplosions();
   for (const q of particles) {
-    ctx.globalAlpha = clamp(q.life / q.max, 0, 1);
-    ctx.fillStyle = q.color;
-    ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
+    const k = clamp(q.life / q.max, 0, 1);
+    if (q.spr && SPR[q.spr]) { // smoke puffs grow and thin out
+      ctx.globalAlpha = k * 0.7;
+      const d = q.size * (2.4 - 1.4 * k);
+      ctx.drawImage(SPR[q.spr], q.x - d / 2, q.y - d / 2, d, d);
+    } else {
+      ctx.globalAlpha = k;
+      ctx.fillStyle = q.color;
+      ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
+    }
   }
   ctx.globalAlpha = 1;
+  drawClouds('high'); // over the whole battle, under the floating text and the HUD
+
   ctx.textBaseline = 'alphabetic';
   for (const t of texts) {
     ctx.globalAlpha = clamp(t.life / 0.5, 0, 1);
@@ -2102,31 +3751,74 @@ function startLoop() {
 
 let pickerReturn = null; // the overlay to go back to when the plane picker closes
 
+// A small picture of plane i, drawn from its real (possibly recoloured) sprite.
+function planeThumb(i) {
+  const spr = SPR['plane' + i];
+  if (!spr) { // not loaded yet: fall back to the file
+    if (!PLANES[i].file) return makeCanvas(144, 144); // atlas planes have no file of their own
+    const img = document.createElement('img');
+    img.src = PLANES[i].file;
+    img.alt = '';
+    return img;
+  }
+  const size = 144;
+  const c = makeCanvas(size, size);
+  const k = Math.min(size / spr.width, size / spr.height);
+  const w = spr.width * k, h = spr.height * k;
+  c.getContext('2d').drawImage(spr, (size - w) / 2, (size - h) / 2, w, h);
+  return c;
+}
+
+function selectPlane(i) {
+  if (!planeAvailable(i)) return;
+  selectedPlane = i;
+  writeStore('planeCrashPlane', String(i));
+  writeStore('planeCrashPlaneName', PLANES[i].name);
+  applyPlane();
+  renderPlanePicker();
+}
+
 function renderPlanePicker() {
   planeList.innerHTML = '';
   PLANES.forEach((p, i) => {
-    const locked = i >= unlockedPlanes;
+    const available = planeAvailable(i);
     const card = document.createElement('button');
     card.type = 'button';
-    card.className = 'plane' + (locked ? ' locked' : '') + (i === selectedPlane ? ' selected' : '');
-    const img = document.createElement('img');
-    img.src = p.file;
-    img.alt = '';
+    card.className = 'plane' + (p.item ? ' premium' : '') + (available ? '' : ' locked') + (i === selectedPlane ? ' selected' : '');
+    if (p.item) {
+      const ribbon = document.createElement('span');
+      ribbon.className = 'ribbon';
+      ribbon.textContent = 'PRO';
+      card.appendChild(ribbon);
+    }
     const name = document.createElement('span');
     name.className = 'name';
     name.textContent = p.name;
+    card.append(planeThumb(i), name);
+    if (p.perk) {
+      const perkEl = document.createElement('span');
+      perkEl.className = 'perk';
+      perkEl.textContent = p.perk;
+      card.appendChild(perkEl);
+    }
     const status = document.createElement('span');
-    status.className = 'status';
-    status.textContent = locked ? '\uD83D\uDD12 Defeat boss ' + i : (i === selectedPlane ? 'Selected' : 'Unlocked');
-    card.append(img, name, status);
-    if (locked) {
-      card.disabled = true;
+    if (available) {
+      status.className = 'status';
+      status.textContent = i === selectedPlane ? 'Selected' : (p.item ? 'Owned' : 'Unlocked');
+    } else if (p.item) {
+      status.className = 'buy';
+      status.textContent = 'Buy ' + priceOf(p);
     } else {
-      card.addEventListener('click', () => {
-        selectedPlane = i;
-        writeStore('planeCrashPlane', String(i));
-        renderPlanePicker();
-      });
+      status.className = 'status';
+      status.textContent = '\uD83D\uDD12 Defeat boss ' + i;
+    }
+    card.appendChild(status);
+    if (available) {
+      card.addEventListener('click', () => selectPlane(i));
+    } else if (p.item) {
+      card.addEventListener('click', () => startCheckout(shopItem(p.item), () => selectPlane(i), 'Fly it'));
+    } else {
+      card.disabled = true;
     }
     planeList.appendChild(card);
   });
@@ -2155,8 +3847,8 @@ function startGame() {
   resetGame();
   state = 'playing';
   unlockAudio();
-  music.currentTime = 0;
-  playMusic();
+  playSfx(SFX.jingleStart);
+  switchMusic('game', true);
   startLoop();
 }
 
@@ -2165,7 +3857,8 @@ function pauseGame() {
   state = 'paused';
   drag = null;
   keys.clear();
-  music.pause();
+  pauseMusic();
+  playSfx(SFX.uiPause);
   pauseScreen.classList.remove('hidden');
 }
 
@@ -2173,6 +3866,7 @@ function resumeGame() {
   if (state !== 'paused') return;
   state = 'playing';
   pauseScreen.classList.add('hidden');
+  playSfx(SFX.uiPause);
   playMusic();
   startLoop();
 }
@@ -2196,6 +3890,13 @@ function addHistory(run) {
   writeStore('planeCrashHistory', JSON.stringify(h));
 }
 
+// A revived run is not over yet: drop the entry gameOver() just wrote.
+function popHistory() {
+  const h = readHistory();
+  h.shift();
+  writeStore('planeCrashHistory', JSON.stringify(h));
+}
+
 function formatDate(t) {
   const d = new Date(t);
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' +
@@ -2216,14 +3917,13 @@ function renderHistory() {
   }
   let topShown = false;
   for (const r of h) {
-    const plane = PLANES[r.plane] || PLANES[0];
+    const planeIndex = PLANES[r.plane] ? r.plane : 0;
+    const plane = PLANES[planeIndex];
     const row = document.createElement('div');
     const isTop = !topShown && r.score === top && top > 0;
     if (isTop) topShown = true;
     row.className = 'run' + (isTop ? ' top' : '');
-    const img = document.createElement('img');
-    img.src = plane.file;
-    img.alt = '';
+    const img = planeThumb(planeIndex);
     const info = document.createElement('div');
     info.className = 'info';
     const name = document.createElement('div');
@@ -2256,7 +3956,7 @@ function closeHistory() {
 // Leave the game. The hosting page is told first so it can decide where to go;
 // if nobody is listening, fall back to the browser history.
 function exitGame() {
-  music.pause();
+  pauseMusic();
   let told = false;
   try {
     if (window.parent && window.parent !== window) {
@@ -2272,6 +3972,8 @@ function exitGame() {
 // Abandon the current run and go back to the start screen.
 function exitToMenu() {
   if (state !== 'paused' && state !== 'over') return;
+  // Quitting mid-run still counts: the score so far goes on the record.
+  if (state === 'paused' && player) saveRun();
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   state = 'menu';
@@ -2279,7 +3981,7 @@ function exitToMenu() {
   boss = null;
   drag = null;
   keys.clear();
-  music.pause();
+  switchMusic('menu');
   pauseScreen.classList.add('hidden');
   overScreen.classList.add('hidden');
   hud.classList.add('hidden');
@@ -2288,23 +3990,276 @@ function exitToMenu() {
   renderIdle();
 }
 
-function gameOver() {
-  state = 'over';
-  music.pause();
-  const isBest = score > best;
-  if (isBest) {
+// Writes the run into the best score, the history and the pilot profile. Used when
+// the plane goes down and when the player quits a run from the pause menu.
+function saveRun() {
+  const isBest = score > bestAtStart;
+  if (score > best) {
     best = score;
     writeStore('planeCrashBest', String(best));
   }
+  addHistory({ t: Date.now(), plane: selectedPlane, score, time: Math.round(elapsed), level, bosses: bossesDefeated });
+  recordRun();
+  return isBest;
+}
+
+function gameOver() {
+  state = 'over';
+  switchMusic(null);
+  playSfx(SFX.jingleOver);
+  const isBest = saveRun();
   finalScoreEl.textContent = 'Your Score: ' + score;
   finalStatsEl.textContent = 'Survived ' + formatTime(elapsed) + '  ·  Level ' + level +
     '  ·  Bosses destroyed: ' + bossesDefeated;
   finalBestEl.textContent = isBest && score > 0 ? 'New best score!' : 'Best: ' + best;
-  addHistory({ t: Date.now(), plane: selectedPlane, score, time: Math.round(elapsed), level, bosses: bossesDefeated });
   finalUnlockEl.textContent = unlockedThisRun ? 'New plane unlocked: ' + unlockedThisRun : '';
   finalUnlockEl.classList.toggle('hidden', !unlockedThisRun);
+  refreshShopUi();
   hud.classList.add('hidden');
   overScreen.classList.remove('hidden');
+}
+
+// Spend a revive: the run carries on from where it ended, with full health, a
+// short shield and a clear screen. Score, level, time and the boss all stay.
+function revivePlayer() {
+  if (state !== 'over' || !player || wallet.revives <= 0) return;
+  wallet.revives--;
+  saveWallet();
+  popHistory();
+  const p = player;
+  p.alive = true;
+  p.hp = p.maxHp;
+  p.invuln = 3;
+  p.x = p.tx = W / 2;
+  p.y = p.ty = H - p.h * 0.9;
+  p.tilt = 0;
+  p.fireTimer = 0.3;
+  p.weapon = Math.max(p.weapon, 2);
+  p.weaponTimer = WEAPON_TIME;
+  for (const s of shots) s.dead = true;
+  for (const e of enemies) if (e.kind === 'kamikaze' || e.kind === 'missile') e.dead = true;
+  hurtFlash = 0; shake = 0; deathTimer = 0;
+  drag = null;
+  keys.clear();
+  showBanner('REVIVED', wallet.revives + ' revive' + (wallet.revives === 1 ? '' : 's') + ' left', '#ff6fa8', 2);
+  overScreen.classList.add('hidden');
+  hud.classList.remove('hidden');
+  state = 'playing';
+  playSfx(SFX.extraLife);
+  switchMusic(boss ? 'boss' : 'game');
+  startLoop();
+}
+
+// ---------- Shop ----------
+function openShop() {
+  renderShop();
+  startScreen.classList.add('hidden');
+  shopScreen.classList.remove('hidden');
+}
+
+function closeShop() {
+  shopScreen.classList.add('hidden');
+  startScreen.classList.remove('hidden');
+}
+
+function renderShop() {
+  shopList.innerHTML = '';
+  let section = null;
+  for (const item of SHOP) {
+    const kind = item.plane === undefined ? 'Upgrades' : 'PRO planes';
+    if (kind !== section) {
+      section = kind;
+      const head = document.createElement('div');
+      head.className = 'shop-head';
+      head.textContent = kind;
+      shopList.appendChild(head);
+    }
+    const owned = !item.stock && owns(item.id);
+    const card = document.createElement('div');
+    card.className = 'item' + (owned ? ' owned' : '');
+    const icon = document.createElement('div');
+    icon.className = 'icon';
+    if (item.plane === undefined) icon.textContent = item.icon;
+    else icon.appendChild(planeThumb(item.plane));
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = item.name;
+    const desc = document.createElement('div');
+    desc.className = 'desc';
+    desc.textContent = item.desc;
+    card.append(icon, name, desc);
+    if (item.stock && wallet[item.stock] > 0) {
+      const n = wallet[item.stock];
+      const have = document.createElement('div');
+      have.className = 'have';
+      have.textContent = n + ' ' + item.unit + (n === 1 ? '' : 's') + ' left';
+      card.appendChild(have);
+    }
+    if (owned) {
+      const tag = document.createElement('div');
+      tag.className = 'owned-tag';
+      tag.textContent = '✓ Owned';
+      card.appendChild(tag);
+    } else {
+      // one button does it all: the price is the label
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn green';
+      btn.textContent = 'Buy ' + priceOf(item);
+      btn.addEventListener('click', () => startCheckout(item));
+      card.appendChild(btn);
+    }
+    shopList.appendChild(card);
+  }
+}
+
+// Every button that reflects what the player owns.
+function refreshShopUi() {
+  if (!shopScreen.classList.contains('hidden')) renderShop();
+  hangarBtn.classList.toggle('hidden', owns('hangar') || unlockedPlanes >= FREE_PLANES);
+  const locked = PLANES.slice(unlockedPlanes, FREE_PLANES).map(p => p.name);
+  if (locked.length) {
+    const names = locked.length > 1 ? locked.slice(0, -1).join(', ') + ' and ' + locked[locked.length - 1] : locked[0];
+    hangarSub.textContent = names + ' · no bosses needed';
+  }
+  hangarPrice.textContent = 'Buy ' + priceOf(SHOP[0]);
+  continueBtn.textContent = wallet.revives > 0
+    ? 'Continue (' + wallet.revives + ' left)'
+    : 'Continue · ' + priceOf(REVIVE_PACK);
+  continueBtn.title = wallet.revives > 0
+    ? wallet.revives + ' revive' + (wallet.revives === 1 ? '' : 's') + ' left'
+    : 'Buy a revive pack to continue this run';
+}
+
+// ---------- Checkout (demo) ----------
+// Phone number -> one-time code -> receipt, against /api/payment. Nothing is
+// charged; the server hands the code back so it can be shown on screen.
+const PAY_ERRORS = {
+  unknown_item: 'That item is not for sale.',
+  bad_phone: 'That mobile number was not accepted.',
+  invalid: 'The payment request was not accepted. Please start again.',
+  expired: 'The code expired. Please start again.',
+  too_many: 'Too many wrong codes. Please start again.'
+};
+const PAY_STEPS = ['Phone', 'Otp', 'Busy', 'Done', 'Fail'];
+let checkout = null; // { item, phone, token, onDone, doneLabel } while the popup is open
+
+function startCheckout(item, onDone, doneLabel) {
+  checkout = { item, phone: '', token: null, onDone: onDone || null, doneLabel: doneLabel || 'Done' };
+  payItemEl.innerHTML = '';
+  if (item.plane === undefined) {
+    payItemEl.append(item.icon + ' ' + item.name);
+  } else { // a plane: show the plane itself
+    payItemEl.append(planeThumb(item.plane), item.name);
+  }
+  payPriceEl.textContent = priceOf(item);
+  payPhone.value = '';
+  payOtp.value = '';
+  showPayStep('Phone');
+  payModal.classList.remove('hidden');
+  setTimeout(() => payPhone.focus(), 50);
+}
+
+function showPayStep(name) {
+  for (const s of PAY_STEPS) $('pay' + s + 'Step').classList.toggle('hidden', s !== name);
+  const lit = name === 'Phone' ? 1 : name === 'Otp' || name === 'Busy' ? 2 : 3;
+  payDots.forEach((d, i) => d.classList.toggle('on', i < lit));
+  payPhoneError.textContent = '';
+  payOtpError.textContent = '';
+}
+
+function closeCheckout() {
+  payModal.classList.add('hidden');
+  checkout = null;
+}
+
+function failCheckout(message) {
+  payFailText.textContent = message;
+  showPayStep('Fail');
+}
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function payApi(path, body) {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    cache: 'no-store'
+  });
+  let data = null;
+  try { data = await res.json(); } catch (err) { /* not JSON */ }
+  if (!data || typeof data !== 'object') throw new Error('The payment service is not responding (' + res.status + ').');
+  return data;
+}
+
+async function sendOtp() {
+  const mine = checkout;
+  if (!mine) return;
+  const phone = payPhone.value.replace(/[\s\-().]/g, '');
+  if (!/^\+?\d{10,15}$/.test(phone)) {
+    payPhoneError.textContent = 'Enter a valid mobile number.';
+    payPhone.focus();
+    return;
+  }
+  mine.phone = phone;
+  payBusyText.textContent = 'Sending a code to ' + phone + '…';
+  showPayStep('Busy');
+  try {
+    const [data] = await Promise.all([payApi('/api/payment/start', { item: mine.item.id, phone }), wait(900)]);
+    if (checkout !== mine) return; // cancelled, or a new checkout started meanwhile
+    if (!data.ok) throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
+    mine.token = data.token;
+    payPhoneShown.textContent = phone;
+    payDemoOtp.textContent = data.demoOtp;
+    payConfirmBtn.textContent = 'Pay ' + priceOf(mine.item);
+    payOtp.value = '';
+    showPayStep('Otp');
+    payOtp.focus();
+  } catch (err) {
+    if (checkout === mine) failCheckout(err.message);
+  }
+}
+
+async function confirmOtp() {
+  const mine = checkout;
+  if (!mine || !mine.token) return;
+  const otp = payOtp.value.trim();
+  if (!/^\d{6}$/.test(otp)) {
+    payOtpError.textContent = 'Enter the 6-digit code.';
+    payOtp.focus();
+    return;
+  }
+  payBusyText.textContent = 'Confirming payment…';
+  showPayStep('Busy');
+  try {
+    const [data] = await Promise.all([payApi('/api/payment/confirm', { token: mine.token, otp }), wait(1200)]);
+    if (checkout !== mine) return;
+    if (!data.ok) {
+      if (data.error === 'wrong_otp' && data.token) {
+        mine.token = data.token;
+        showPayStep('Otp');
+        payOtpError.textContent = 'Wrong code. ' + data.triesLeft + ' attempt' + (data.triesLeft === 1 ? '' : 's') + ' left.';
+        payOtp.value = '';
+        payOtp.focus();
+        return;
+      }
+      throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
+    }
+    grant(data.item, data.receipt);
+    payDoneText.textContent = mine.item.name + ' is now yours.';
+    payReceipt.textContent = 'Transaction ' + data.txn + ' · ' + priceOf(mine.item) + ' from ' + mine.phone;
+    payDoneBtn.textContent = mine.doneLabel;
+    showPayStep('Done');
+  } catch (err) {
+    if (checkout === mine) failCheckout(err.message);
+  }
+}
+
+function finishCheckout() {
+  const done = checkout && checkout.onDone;
+  closeCheckout();
+  if (done) done();
 }
 
 // ---------- UI wiring ----------
@@ -2325,6 +4280,87 @@ const muteBtn = $('muteBtn');
 const finalScoreEl = $('finalScore');
 const finalStatsEl = $('finalStats');
 const finalBestEl = $('finalBest');
+const shopScreen = $('shopScreen');
+const shopList = $('shopList');
+const hangarBtn = $('hangarBtn');
+const hangarSub = $('hangarSub');
+const hangarPrice = $('hangarPrice');
+const continueBtn = $('continueBtn');
+const payModal = $('payModal');
+const payDots = Array.from(payModal.querySelectorAll('.dots span'));
+const payItemEl = $('payItem');
+const payPriceEl = $('payPrice');
+const payPhone = $('payPhone');
+const payPhoneError = $('payPhoneError');
+const payPhoneShown = $('payPhoneShown');
+const payDemoOtp = $('payDemoOtp');
+const payOtp = $('payOtp');
+const payOtpError = $('payOtpError');
+const payConfirmBtn = $('payConfirmBtn');
+const payBusyText = $('payBusyText');
+const payDoneText = $('payDoneText');
+const payReceipt = $('payReceipt');
+const payDoneBtn = $('payDoneBtn');
+const payFailText = $('payFailText');
+const profileScreen = $('profileScreen');
+const chipAvatar = $('chipAvatar');
+const chipName = $('chipName');
+const chipRank = $('chipRank');
+const avatarBtn = $('avatarBtn');
+const avatarPick = $('avatarPick');
+const pilotName = $('pilotName');
+const pilotRank = $('pilotRank');
+
+// pilot profile
+for (const a of AVATARS) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = a;
+  b.addEventListener('click', () => {
+    profile.avatar = a;
+    saveProfile();
+    syncProfileUi();
+    avatarPick.classList.add('hidden');
+  });
+  avatarPick.appendChild(b);
+}
+$('profileBtn').addEventListener('click', openProfile);
+$('profileBackBtn').addEventListener('click', closeProfile);
+avatarBtn.addEventListener('click', () => avatarPick.classList.toggle('hidden'));
+pilotName.addEventListener('input', () => setPilotName(pilotName.value));
+pilotName.addEventListener('blur', () => { pilotName.value = profile.name; });
+
+// shop and checkout
+$('shopBtn').addEventListener('click', openShop);
+$('shopBackBtn').addEventListener('click', closeShop);
+hangarBtn.addEventListener('click', () => startCheckout(SHOP[0]));
+continueBtn.addEventListener('click', () => {
+  if (wallet.revives > 0) revivePlayer();
+  else startCheckout(REVIVE_PACK, revivePlayer, 'Continue run');
+});
+$('paySendBtn').addEventListener('click', sendOtp);
+payConfirmBtn.addEventListener('click', confirmOtp);
+$('payChangeBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
+payDoneBtn.addEventListener('click', finishCheckout);
+$('payRetryBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
+for (const b of payModal.querySelectorAll('.pay-cancel')) b.addEventListener('click', closeCheckout);
+payPhone.addEventListener('keydown', e => { if (e.key === 'Enter') sendOtp(); });
+payOtp.addEventListener('keydown', e => { if (e.key === 'Enter') confirmOtp(); });
+payOtp.addEventListener('input', () => { payOtp.value = payOtp.value.replace(/\D/g, '').slice(0, 6); });
+payPhone.addEventListener('input', () => { payPhone.value = payPhone.value.replace(/[^\d+\s\-()]/g, ''); });
+
+// Every button clicks; a few have a sound of their own. Pause and resume play theirs in pauseGame/resumeGame.
+const UI_SOUNDS = {
+  startBtn: 'uiSelect', playBtn: 'uiSelect', retryBtn: 'uiSelect',
+  backBtn: 'uiBack', overMenuBtn: 'uiBack', menuBtn: 'uiBack', historyBackBtn: 'uiBack', profileBackBtn: 'uiBack', shopBackBtn: 'uiBack',
+  pauseBtn: null, resumeBtn: null, muteBtn: null
+};
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b || b.disabled) return;
+  const key = b.id in UI_SOUNDS ? UI_SOUNDS[b.id] : 'uiClick';
+  if (key) playSfx(SFX[key]);
+});
 
 playBtn.addEventListener('click', () => openPlanePicker(startScreen));
 $('startBtn').addEventListener('click', startGame);
@@ -2355,6 +4391,8 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('resize', resizeCanvas);
 
 syncAudioUi();
+refreshShopUi();
+syncProfileUi();
 if (best > 0) $('startBest').textContent = 'Best: ' + best;
 resizeCanvas();
 loadAssets();

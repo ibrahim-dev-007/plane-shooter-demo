@@ -1,0 +1,201 @@
+{
+ "image": "atlas.png",
+ "size": {
+  "w": 2048,
+  "h": 1156
+ },
+ "frames": {
+  "effects/propeller_blur": {
+   "x": 0,
+   "y": 0,
+   "w": 490,
+   "h": 490
+  },
+  "effects/propeller_blur_blades": {
+   "x": 494,
+   "y": 0,
+   "w": 490,
+   "h": 490
+  },
+  "helicopters/heli_brown": {
+   "x": 988,
+   "y": 0,
+   "w": 242,
+   "h": 420
+  },
+  "helicopters/heli_dark_grey": {
+   "x": 1234,
+   "y": 0,
+   "w": 200,
+   "h": 404
+  },
+  "planes/jet_camo_green": {
+   "x": 1438,
+   "y": 0,
+   "w": 204,
+   "h": 366
+  },
+  "planes/jet_dark_grey": {
+   "x": 1646,
+   "y": 0,
+   "w": 204,
+   "h": 354
+  },
+  "planes/biplane_yellow_stripes": {
+   "x": 0,
+   "y": 494,
+   "w": 414,
+   "h": 338
+  },
+  "planes/bomber_dark_4engine": {
+   "x": 418,
+   "y": 494,
+   "w": 530,
+   "h": 336
+  },
+  "planes/attack_jet_olive": {
+   "x": 952,
+   "y": 494,
+   "w": 428,
+   "h": 330
+  },
+  "planes/transport_camo_brown": {
+   "x": 1384,
+   "y": 494,
+   "w": 344,
+   "h": 330
+  },
+  "planes/twin_engine_desert": {
+   "x": 0,
+   "y": 836,
+   "w": 420,
+   "h": 320
+  },
+  "planes/fighter_blue_white": {
+   "x": 424,
+   "y": 836,
+   "w": 408,
+   "h": 318
+  },
+  "missiles/tube_long": {
+   "x": 836,
+   "y": 836,
+   "w": 18,
+   "h": 92
+  },
+  "bullets/fireball_orange": {
+   "x": 858,
+   "y": 836,
+   "w": 34,
+   "h": 88
+  },
+  "bullets/plasma_blue": {
+   "x": 896,
+   "y": 836,
+   "w": 38,
+   "h": 78
+  },
+  "missiles/missile_grey": {
+   "x": 938,
+   "y": 836,
+   "w": 30,
+   "h": 78
+  },
+  "missiles/missile_red_tip": {
+   "x": 972,
+   "y": 836,
+   "w": 32,
+   "h": 78
+  },
+  "missiles/tube_short": {
+   "x": 1008,
+   "y": 836,
+   "w": 20,
+   "h": 78
+  },
+  "pickups/star": {
+   "x": 1032,
+   "y": 836,
+   "w": 78,
+   "h": 76
+  },
+  "bullets/laser_red": {
+   "x": 1114,
+   "y": 836,
+   "w": 26,
+   "h": 74
+  },
+  "bullets/crescent_blue": {
+   "x": 1144,
+   "y": 836,
+   "w": 42,
+   "h": 68
+  },
+  "bullets/orb_pink_glow": {
+   "x": 1190,
+   "y": 836,
+   "w": 70,
+   "h": 68
+  },
+  "missiles/tube_medium": {
+   "x": 1264,
+   "y": 836,
+   "w": 18,
+   "h": 68
+  },
+  "missiles/rocket_orange_fins": {
+   "x": 1286,
+   "y": 836,
+   "w": 36,
+   "h": 66
+  },
+  "bullets/flame_orange": {
+   "x": 1326,
+   "y": 836,
+   "w": 28,
+   "h": 60
+  },
+  "missiles/rocket_red_white": {
+   "x": 1358,
+   "y": 836,
+   "w": 28,
+   "h": 60
+  },
+  "missiles/bomb_canister": {
+   "x": 1390,
+   "y": 836,
+   "w": 32,
+   "h": 54
+  },
+  "bullets/orb_pink_small": {
+   "x": 1426,
+   "y": 836,
+   "w": 42,
+   "h": 52
+  },
+  "bullets/drop_blue_small": {
+   "x": 1472,
+   "y": 836,
+   "w": 32,
+   "h": 46
+  },
+  "effects/smoke_puff": {
+   "x": 1508,
+   "y": 836,
+   "w": 42,
+   "h": 40
+  },
+  "effects/thruster_flame_a": {
+   "x": 1554,
+   "y": 836,
+   "w": 20,
+   "h": 30
+  },
+  "effects/thruster_flame_b": {
+   "x": 1578,
+   "y": 836,
+   "w": 16,
+   "h": 26
+  }
+ }
+}
