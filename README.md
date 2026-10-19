@@ -30,13 +30,14 @@ If the game starts using a new image or sound, put the file in `game/` and add i
 
 ## Shop and payments (demo)
 
-The start screen has a **Shop** with three paid upgrades. The upgrades work for real; the payment does not move money.
+The start screen has a **Shop** with four paid upgrades. The upgrades work for real; the payment does not move money.
 
 | Item | Price | What it does |
 | --- | --- | --- |
 | Full Hangar | ৳99 | Unlocks all four standard planes at once (also offered on the plane picker while planes are locked). |
 | Armor Plating | ৳49 | Three runs that start with 7 health instead of 5. One is used up each time a run starts (a revive does not use another). |
 | Revive Pack | ৳99 | Three revives. The game-over screen gets a **Continue** button that resumes the run with full health, keeping score, level, time and the current boss. With no revives left, Continue opens the checkout for a pack and resumes once it is paid. |
+| Shield | ৳9 each | Shields are held up to ten at a time. The checkout's number-entry step has a stepper so several can go in one payment (it stops at the cap). During a run a shield button sits at the bottom right of the HUD (also the E or Space key); using it wraps the plane in a bubble that takes no damage at all for 5 seconds. Only one shield runs at a time, and any number can be used in a run. |
 
 Four **PRO planes** are sold one by one, from the shop or straight from the plane picker. Each is a recoloured standard sprite with its own perk, defined in `PLANES` in `game/index.html`:
 
@@ -49,9 +50,9 @@ Four **PRO planes** are sold one by one, from the shop or straight from the plan
 
 The start screen also shows a **pilot profile**: a name and avatar the player picks, a rank earned by bosses destroyed over all games (Cadet → Pilot → Veteran → Ace → Commander → Legend), and lifetime stats. It lives in the browser under the `localStorage` key `planeCrashProfile`.
 
-Checkout is a popup inside the game: enter a mobile number, "receive" a 6-digit OTP (the demo shows it on screen in a fake SMS bubble), enter it, done. Wrong codes are allowed three times, codes expire after 5 minutes, and the whole flow is stateless: each step is a signed token, so it works on serverless hosts without a database. Purchases are stored in the browser (`localStorage` key `planeCrashWallet`) together with the signed receipts: `hangar` is a flag, `armor` and `revives` are counters.
+Checkout is a popup inside the game: enter a mobile number, "receive" a 6-digit OTP (the demo shows it on screen in a fake SMS bubble), enter it, done. Wrong codes are allowed three times, codes expire after 5 minutes, and the whole flow is stateless: each step is a signed token, so it works on serverless hosts without a database. Purchases are stored in the browser (`localStorage` key `planeCrashWallet`) together with the signed receipts: `hangar` is a flag, `armor`, `revives` and `shields` are counters (`shields` is capped at 10).
 
-To plug in a real provider (bKash, Nagad, SSLCommerz, Stripe, ...), replace `startPayment()` and `confirmPayment()` in `lib/payments.ts` with the provider's create and execute/verify calls and stop returning `demoOtp`. Prices live in `CATALOG` there and in `SHOP` inside `game/index.html`; keep the two in step. The currency sign is the `CURRENCY` constant in the game.
+To plug in a real provider (bKash, Nagad, SSLCommerz, Stripe, ...), replace `startPayment()` and `confirmPayment()` in `lib/payments.ts` with the provider's create and execute/verify calls and stop returning `demoOtp`. Prices live in `CATALOG` there and in `SHOP` inside `game/index.html`; keep the two in step. A payment may cover several of one item (`qty`, allowed up to the catalog entry's `maxQty`, which only shields set); the receipt records the quantity and the full amount. The currency sign is the `CURRENCY` constant in the game.
 
 ## How the game files are protected
 

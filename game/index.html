@@ -503,6 +503,118 @@
       box-shadow: 0 3px 0 var(--tan), 0 3px 0 3px var(--ink);
     }
     #hud button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--tan), 0 1px 0 3px var(--ink); }
+    /* Shield button: the round shield-btn.png face at the bottom right, under the thumb,
+       with a count badge. While a shield is up a white ring drains round the rim
+       (--t is the fraction left) and the badge counts the seconds down. */
+    #hud #shieldBtn {
+      position: fixed;
+      right: 14px;
+      bottom: 20px;
+      width: 80px;
+      height: 80px;
+      padding: 0;
+      overflow: visible;
+      line-height: 0;
+      background: none;
+      border: none;
+      border-radius: 50%;
+      box-shadow: none;
+      transition: transform 0.08s;
+    }
+    #hud #shieldBtn:active { transform: scale(0.92); box-shadow: none; }
+    #hud #shieldBtn img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      filter: drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45));
+      transition: filter 0.2s;
+    }
+    #hud #shieldBtn .ring {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      background: conic-gradient(#fff calc(var(--t) * 100%), rgba(255, 255, 255, 0.18) 0);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+      mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    /* Count badge: a dark glass tag with a steel rim and glowing cyan digits, matching
+       the metal-and-blue button face. It tucks into the bottom right of the rim. */
+    #hud #shieldBtn .count {
+      position: absolute;
+      right: -8px;
+      bottom: -4px;
+      min-width: 32px;
+      height: 30px;
+      padding: 0 9px;
+      box-sizing: border-box;
+      font-size: 15px;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      line-height: 26px;
+      letter-spacing: 0.5px;
+      color: #dff6ff;
+      text-shadow: 0 0 6px rgba(90, 200, 250, 0.9), 0 1px 0 rgba(0, 0, 0, 0.6);
+      background: radial-gradient(circle at 50% 25%, #1c5a9e, #0a1f3d 80%);
+      border: 2px solid #d3dde8;
+      border-radius: 15px;
+      box-shadow: 0 0 0 1px #243246, 0 3px 6px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      transition: color 0.2s, box-shadow 0.2s;
+    }
+    #hud #shieldBtn.active .ring { opacity: 1; }
+    #hud #shieldBtn.active img { filter: drop-shadow(0 0 14px rgba(90, 200, 250, 0.95)) brightness(1.12); }
+    #hud #shieldBtn.active .count {
+      color: #fff;
+      border-color: #8fe3ff;
+      box-shadow: 0 0 0 1px #243246, 0 0 14px rgba(90, 200, 250, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    #hud #shieldBtn.empty img { filter: grayscale(1) brightness(0.6) drop-shadow(0 4px 4px rgba(0, 0, 0, 0.45)); }
+    #hud #shieldBtn.empty .count {
+      color: #9aa3ad;
+      text-shadow: none;
+      border-color: #8a9099;
+      background: radial-gradient(circle at 50% 25%, #3a3f47, #1c1f24 80%);
+    }
+    /* Quantity stepper in the checkout, for consumables that sell singly */
+    .qty {
+      width: 100%;
+      box-sizing: border-box;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 8px;
+      padding: 8px 14px;
+      background: var(--cream-2);
+      border: 3px solid var(--tan);
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 15px;
+      color: var(--ink);
+    }
+    .qty .ctl { display: flex; align-items: center; gap: 8px; }
+    .qty button {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      font: inherit;
+      font-size: 22px;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--ink);
+      background: var(--cream);
+      border: 2px solid var(--ink);
+      border-radius: 10px;
+      cursor: pointer;
+      box-shadow: 0 2px 0 var(--ink);
+    }
+    .qty button:active:not(:disabled) { transform: translateY(2px); box-shadow: none; }
+    .qty button:disabled { opacity: 0.35; cursor: default; }
+    .qty .num { min-width: 28px; text-align: center; font-size: 20px; }
+    .qty .room { font-size: 11px; font-weight: 700; color: var(--brown); }
     /* Shop */
     #shopList {
       display: grid;
@@ -650,6 +762,7 @@
 <div id="hud" class="hidden">
   <button id="muteBtn" aria-label="Toggle sound">🔊</button>
   <button id="pauseBtn" aria-label="Pause">⏸</button>
+  <button id="shieldBtn" class="hidden" aria-label="Use shield" title="Shield (E or Space)"><span class="ring"></span><img src="./shield-btn.png" alt="" draggable="false"><span class="count">×0</span></button>
 </div>
 
 <div id="loadScreen" class="overlay">
@@ -774,6 +887,14 @@
     <div class="summary"><span id="payItem"></span><span id="payPrice" class="price"></span></div>
 
     <div id="payPhoneStep" class="step">
+      <div id="payQty" class="qty hidden">
+        <span>How many?<br><span id="payQtyRoom" class="room"></span></span>
+        <span class="ctl">
+          <button id="payQtyMinus" type="button" aria-label="Fewer">&minus;</button>
+          <span id="payQtyNum" class="num">1</span>
+          <button id="payQtyPlus" type="button" aria-label="More">+</button>
+        </span>
+      </div>
       <p class="hint">Enter the mobile wallet number to pay from. A one-time code will be sent to it.</p>
       <input id="payPhone" class="field" type="tel" inputmode="numeric" autocomplete="tel" maxlength="16" placeholder="Mobile number">
       <p id="payPhoneError" class="error"></p>
@@ -1548,17 +1669,22 @@ const CURRENCY = '৳'; // ৳
 const SHOP = [
   { id: 'hangar',  icon: '✈️', name: 'Full Hangar',   price: 99, desc: 'Unlock all four standard planes right now, no bosses required.' },
   { id: 'armor',   icon: '🛡️', name: 'Armor Plating', price: 49, desc: 'Three runs with +2 max health. One is used each time you start.', stock: 'armor', amount: 3, unit: 'run' },
-  { id: 'revive3', icon: '💖', name: 'Revive Pack',   price: 99, desc: 'Three revives. Continue a run after you crash, keeping your score and level.', stock: 'revives', amount: 3, unit: 'revive' }
+  { id: 'revive3', icon: '💖', name: 'Revive Pack',   price: 99, desc: 'Three revives. Continue a run after you crash, keeping your score and level.', stock: 'revives', amount: 3, unit: 'revive' },
+  // 'max' caps how many of a consumable the wallet can hold at once; 'price' is for one,
+  // and the shop lets several go in a single payment.
+  { id: 'shield',  icon: '🛡️', name: 'Shield',        price: 9,  desc: 'Five seconds of no damage at all, used whenever you like during a run. Keep up to ten.', stock: 'shields', amount: 1, unit: 'shield', max: 10 }
 ];
 const REVIVE_PACK = SHOP[2];
+const SHIELD_ITEM = SHOP[3];
 const ARMOR_BONUS = 2;
+const SHIELD_TIME = 5; // seconds one shield lasts
 // PRO planes are shop items too, so they can be bought from the shop or the plane picker.
 PLANES.forEach((p, i) => {
   if (p.item) SHOP.push({ id: p.item, plane: i, name: p.name, price: p.price, desc: p.perk });
 });
 const shopItem = id => SHOP.find(i => i.id === id);
 
-// wallet = { hangar: true, armor: 2, revives: 2, receipts: [...] }
+// wallet = { hangar: true, armor: 2, revives: 2, shields: 4, receipts: [...] }
 function readWallet() {
   let w = {};
   try {
@@ -1567,6 +1693,7 @@ function readWallet() {
   } catch (err) { /* corrupt save: start empty */ }
   w.revives = Math.max(0, parseInt(w.revives, 10) || 0);
   w.armor = w.armor === true ? 3 : Math.max(0, parseInt(w.armor, 10) || 0); // armor used to be a one-off
+  w.shields = clamp(parseInt(w.shields, 10) || 0, 0, SHIELD_ITEM.max);
   w.receipts = Array.isArray(w.receipts) ? w.receipts : [];
   return w;
 }
@@ -1574,13 +1701,15 @@ const wallet = readWallet();
 
 function saveWallet() { writeStore('planeCrashWallet', JSON.stringify(wallet)); }
 function owns(id) { return wallet[id] === true; }
-function priceOf(item) { return CURRENCY + item.price; }
+function priceOf(item, qty) { return CURRENCY + item.price * (qty || 1); }
 
-// A confirmed purchase lands here, whatever it was bought from.
-function grant(id, receipt) {
+// A confirmed purchase lands here, whatever it was bought from. qty is how many
+// of the item one payment covered (shields can be bought several at a time).
+function grant(id, receipt, qty) {
   const item = SHOP.find(i => i.id === id);
   if (!item) return;
-  if (item.stock) wallet[item.stock] += item.amount;
+  const n = Math.max(1, parseInt(qty, 10) || 1);
+  if (item.stock) wallet[item.stock] = Math.min(item.max || Infinity, wallet[item.stock] + item.amount * n);
   else wallet[id] = true;
   if (receipt) wallet.receipts = wallet.receipts.concat(receipt).slice(-20);
   saveWallet();
@@ -1588,6 +1717,7 @@ function grant(id, receipt) {
   refreshShopUi();
   if (!planeScreen.classList.contains('hidden')) renderPlanePicker();
   syncProfileUi();
+  syncShieldUi();
 }
 
 function unlockAllPlanes() {
@@ -1750,6 +1880,8 @@ function resetGame() {
     baseHp, // health above this is Armor Plating, drawn in blue on the HUD
     alive: true,
     invuln: 0,
+    shield: 0, // seconds of bought shield left: no damage at all while it runs
+    shieldHit: -1, // clock time the bubble last rang, so a boss sitting on it does not ring every frame
     tilt: 0,
     fireTimer: 0.3,
     weapon: 1, weaponTimer: 0,
@@ -1775,6 +1907,38 @@ function resetGame() {
   if (armored) showBanner('ARMOR PLATING', wallet.armor + ' run' + (wallet.armor === 1 ? '' : 's') + ' left', '#3ea6ff', 2);
   drag = null;
   keys.clear();
+  syncShieldUi();
+}
+
+// Spend one shield from the wallet. Only one runs at a time, so a tap while it is
+// up does nothing rather than burning a second shield.
+function useShield() {
+  const p = player;
+  if (state !== 'playing' || !p || !p.alive || p.shield > 0 || wallet.shields <= 0) return;
+  wallet.shields--;
+  saveWallet();
+  p.shield = SHIELD_TIME;
+  playSfx(SFX.powerup);
+  sparks(p.x, p.y, 14, '#5ac8fa', 220 * S);
+  floatText(p.x, p.y - p.h * 0.6, 'SHIELD', '#5ac8fa');
+  syncShieldUi();
+}
+
+// The shield button shows how many are left and, while one is up, how long it has.
+let shieldUiKey = '';
+function syncShieldUi() {
+  const active = player && state === 'playing' && player.shield > 0;
+  const n = wallet.shields;
+  const frac = active ? Math.ceil(player.shield / SHIELD_TIME * 50) / 50 : 0;
+  const key = (active ? 'a' : 'i') + n + ':' + frac;
+  if (key === shieldUiKey) return; // the DOM only changes when something visible does
+  shieldUiKey = key;
+  shieldBtn.classList.toggle('hidden', n <= 0 && !active);
+  shieldBtn.classList.toggle('active', active);
+  shieldBtn.classList.toggle('empty', n <= 0 && !active);
+  shieldBtn.style.setProperty('--t', frac);
+  // while one is up the pill counts the seconds down; otherwise it shows how many are left
+  shieldCount.textContent = active ? (frac * SHIELD_TIME).toFixed(1) + 's' : '\u00d7' + n;
 }
 
 // ---------- Input ----------
@@ -1839,8 +2003,11 @@ window.addEventListener('keydown', e => {
     else if (state === 'paused') resumeGame();
   } else if (e.code === 'KeyM') {
     toggleAllAudio();
+  } else if (e.code === 'KeyE' && !e.repeat) {
+    useShield();
   } else if ((e.code === 'Enter' || e.code === 'Space') && !e.repeat) {
     if (!historyScreen.classList.contains('hidden')) { /* reading history */ }
+    else if (state === 'playing') { if (e.code === 'Space') useShield(); }
     else if (!planeScreen.classList.contains('hidden')) startGame();
     else if (state === 'menu' && !playBtn.disabled) openPlanePicker(startScreen);
     else if (state === 'over') startGame();
@@ -1993,6 +2160,11 @@ function updatePlayer(dt) {
   p.tilt += (clamp(vx / (700 * S), -1, 1) - p.tilt) * (1 - Math.exp(-dt * 10));
 
   p.invuln = Math.max(0, p.invuln - dt);
+  if (p.shield > 0) {
+    p.shield = Math.max(0, p.shield - dt);
+    if (p.shield <= 0) floatText(p.x, p.y - p.h * 0.6, 'SHIELD DOWN', '#5ac8fa');
+    syncShieldUi();
+  }
 
   if (p.weapon > 1) {
     p.weaponTimer -= dt;
@@ -2034,6 +2206,14 @@ function perk(name) {
 function damagePlayer(amount) {
   const p = player;
   if (!p.alive || p.invuln > 0) return;
+  if (p.shield > 0) { // the bubble takes it: a ring and a few sparks, nothing else
+    if (clock - p.shieldHit >= 0.12) {
+      p.shieldHit = clock;
+      playSfx(SFX.shield);
+      sparks(p.x, p.y, 6, '#8fe3ff', 220 * S);
+    }
+    return;
+  }
   playSfx(p.hp > p.baseHp ? SFX.shield : SFX.hurt); // armor plating rings, the plane itself crunches
   p.hp -= amount * (1 - (perk('resist') || 0)); // the Aegis shrugs off part of every hit
   p.invuln = 1.1;
@@ -3540,6 +3720,35 @@ function drawPlayer() {
   drawSprite('player', 0, 0, p.w, p.h, 0);
   ctx.restore();
   ctx.globalAlpha = 1;
+  if (p.shield > 0) drawShieldBubble(p);
+}
+
+// A translucent bubble round the plane while a bought shield is up. It pulses
+// gently and flickers through its last second so the end never comes as a surprise.
+function drawShieldBubble(p) {
+  const r = Math.max(p.w, p.h) * 0.62 + Math.sin(clock * 6) * 2 * S;
+  let alpha = 1;
+  if (p.shield < 1) alpha = 0.45 + 0.55 * (Math.floor(clock * 12) % 2);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const grad = ctx.createRadialGradient(p.x, p.y, r * 0.55, p.x, p.y, r);
+  grad.addColorStop(0, 'rgba(120, 210, 255, 0.05)');
+  grad.addColorStop(0.8, 'rgba(120, 210, 255, 0.22)');
+  grad.addColorStop(1, 'rgba(200, 240, 255, 0.55)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, TAU);
+  ctx.fill();
+  ctx.lineWidth = 2.5 * S;
+  ctx.strokeStyle = 'rgba(230, 250, 255, 0.9)';
+  ctx.stroke();
+  // a highlight arc that drifts round the rim
+  ctx.lineWidth = 4 * S;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r - 2 * S, clock * 2, clock * 2 + 0.9);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawExplosions() {
@@ -4045,6 +4254,7 @@ function revivePlayer() {
   overScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   state = 'playing';
+  syncShieldUi();
   playSfx(SFX.extraLife);
   switchMusic(boss ? 'boss' : 'game');
   startLoop();
@@ -4075,6 +4285,7 @@ function renderShop() {
       shopList.appendChild(head);
     }
     const owned = !item.stock && owns(item.id);
+    const full = !!item.stock && !!item.max && wallet[item.stock] >= item.max;
     const card = document.createElement('div');
     card.className = 'item' + (owned ? ' owned' : '');
     const icon = document.createElement('div');
@@ -4092,20 +4303,23 @@ function renderShop() {
       const n = wallet[item.stock];
       const have = document.createElement('div');
       have.className = 'have';
-      have.textContent = n + ' ' + item.unit + (n === 1 ? '' : 's') + ' left';
+      have.textContent = item.max
+        ? n + ' / ' + item.max + ' ' + item.unit + 's'
+        : n + ' ' + item.unit + (n === 1 ? '' : 's') + ' left';
       card.appendChild(have);
     }
-    if (owned) {
+    if (owned || full) {
       const tag = document.createElement('div');
       tag.className = 'owned-tag';
-      tag.textContent = '✓ Owned';
+      tag.textContent = owned ? '✓ Owned' : 'Max ' + item.max;
       card.appendChild(tag);
     } else {
-      // one button does it all: the price is the label
+      // one button does it all: the price is the label (for shields it is the price
+      // of one; how many go in the payment is picked in the checkout)
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'btn green';
-      btn.textContent = 'Buy ' + priceOf(item);
+      btn.textContent = 'Buy ' + priceOf(item) + (item.max ? ' each' : '');
       btn.addEventListener('click', () => startCheckout(item));
       card.appendChild(btn);
     }
@@ -4137,27 +4351,47 @@ function refreshShopUi() {
 const PAY_ERRORS = {
   unknown_item: 'That item is not for sale.',
   bad_phone: 'That mobile number was not accepted.',
+  bad_qty: 'That quantity is not available.',
   invalid: 'The payment request was not accepted. Please start again.',
   expired: 'The code expired. Please start again.',
   too_many: 'Too many wrong codes. Please start again.'
 };
 const PAY_STEPS = ['Phone', 'Otp', 'Busy', 'Done', 'Fail'];
-let checkout = null; // { item, phone, token, onDone, doneLabel } while the popup is open
+let checkout = null; // { item, qty, room, phone, token, onDone, doneLabel } while the popup is open
 
 function startCheckout(item, onDone, doneLabel) {
-  checkout = { item, phone: '', token: null, onDone: onDone || null, doneLabel: doneLabel || 'Done' };
-  payItemEl.innerHTML = '';
-  if (item.plane === undefined) {
-    payItemEl.append(item.icon + ' ' + item.name);
-  } else { // a plane: show the plane itself
-    payItemEl.append(planeThumb(item.plane), item.name);
-  }
-  payPriceEl.textContent = priceOf(item);
+  // Items sold singly (shields) can go several to a payment, up to what the wallet has room for.
+  const room = item.max ? Math.max(1, item.max - wallet[item.stock]) : 1;
+  checkout = { item, qty: 1, room, phone: '', token: null, onDone: onDone || null, doneLabel: doneLabel || 'Done' };
+  payQty.classList.toggle('hidden', room <= 1);
+  syncCheckoutSummary();
   payPhone.value = '';
   payOtp.value = '';
   showPayStep('Phone');
   payModal.classList.remove('hidden');
   setTimeout(() => payPhone.focus(), 50);
+}
+
+// The summary line and the stepper follow the quantity.
+function syncCheckoutSummary() {
+  const { item, qty, room } = checkout;
+  payItemEl.innerHTML = '';
+  if (item.plane === undefined) {
+    payItemEl.append(item.icon + ' ' + item.name + (qty > 1 ? ' \u00d7 ' + qty : ''));
+  } else { // a plane: show the plane itself
+    payItemEl.append(planeThumb(item.plane), item.name);
+  }
+  payPriceEl.textContent = priceOf(item, qty);
+  payQtyNum.textContent = qty;
+  payQtyMinus.disabled = qty <= 1;
+  payQtyPlus.disabled = qty >= room;
+  payQtyRoom.textContent = room + ' more fit in your wallet';
+}
+
+function stepCheckoutQty(delta) {
+  if (!checkout || payPhoneStep.classList.contains('hidden')) return; // only while the number is being entered
+  checkout.qty = clamp(checkout.qty + delta, 1, checkout.room);
+  syncCheckoutSummary();
 }
 
 function showPayStep(name) {
@@ -4206,13 +4440,13 @@ async function sendOtp() {
   payBusyText.textContent = 'Sending a code to ' + phone + '…';
   showPayStep('Busy');
   try {
-    const [data] = await Promise.all([payApi('/api/payment/start', { item: mine.item.id, phone }), wait(900)]);
+    const [data] = await Promise.all([payApi('/api/payment/start', { item: mine.item.id, qty: mine.qty, phone }), wait(900)]);
     if (checkout !== mine) return; // cancelled, or a new checkout started meanwhile
     if (!data.ok) throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
     mine.token = data.token;
     payPhoneShown.textContent = phone;
     payDemoOtp.textContent = data.demoOtp;
-    payConfirmBtn.textContent = 'Pay ' + priceOf(mine.item);
+    payConfirmBtn.textContent = 'Pay ' + priceOf(mine.item, mine.qty);
     payOtp.value = '';
     showPayStep('Otp');
     payOtp.focus();
@@ -4246,9 +4480,10 @@ async function confirmOtp() {
       }
       throw new Error(PAY_ERRORS[data.error] || 'Something went wrong.');
     }
-    grant(data.item, data.receipt);
-    payDoneText.textContent = mine.item.name + ' is now yours.';
-    payReceipt.textContent = 'Transaction ' + data.txn + ' · ' + priceOf(mine.item) + ' from ' + mine.phone;
+    const qty = parseInt(data.qty, 10) || mine.qty;
+    grant(data.item, data.receipt, qty);
+    payDoneText.textContent = (qty > 1 ? qty + ' ' + mine.item.unit + 's are' : mine.item.name + ' is') + ' now yours.';
+    payReceipt.textContent = 'Transaction ' + data.txn + ' · ' + priceOf(mine.item, qty) + ' from ' + mine.phone;
     payDoneBtn.textContent = mine.doneLabel;
     showPayStep('Done');
   } catch (err) {
@@ -4275,6 +4510,8 @@ const musicToggle = $('musicToggle');
 const planeList = $('planeList');
 const finalUnlockEl = $('finalUnlock');
 const hud = $('hud');
+const shieldBtn = $('shieldBtn');
+const shieldCount = shieldBtn.querySelector('.count');
 const playBtn = $('playBtn');
 const muteBtn = $('muteBtn');
 const finalScoreEl = $('finalScore');
@@ -4291,6 +4528,12 @@ const payDots = Array.from(payModal.querySelectorAll('.dots span'));
 const payItemEl = $('payItem');
 const payPriceEl = $('payPrice');
 const payPhone = $('payPhone');
+const payPhoneStep = $('payPhoneStep');
+const payQty = $('payQty');
+const payQtyNum = $('payQtyNum');
+const payQtyRoom = $('payQtyRoom');
+const payQtyMinus = $('payQtyMinus');
+const payQtyPlus = $('payQtyPlus');
 const payPhoneError = $('payPhoneError');
 const payPhoneShown = $('payPhoneShown');
 const payDemoOtp = $('payDemoOtp');
@@ -4341,6 +4584,8 @@ continueBtn.addEventListener('click', () => {
 $('paySendBtn').addEventListener('click', sendOtp);
 payConfirmBtn.addEventListener('click', confirmOtp);
 $('payChangeBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
+payQtyMinus.addEventListener('click', () => stepCheckoutQty(-1));
+payQtyPlus.addEventListener('click', () => stepCheckoutQty(1));
 payDoneBtn.addEventListener('click', finishCheckout);
 $('payRetryBtn').addEventListener('click', () => { showPayStep('Phone'); payPhone.focus(); });
 for (const b of payModal.querySelectorAll('.pay-cancel')) b.addEventListener('click', closeCheckout);
@@ -4381,6 +4626,10 @@ $('pauseBtn').addEventListener('click', e => {
 muteBtn.addEventListener('click', () => {
   muteBtn.blur();
   toggleAllAudio();
+});
+shieldBtn.addEventListener('click', () => {
+  shieldBtn.blur();
+  useShield();
 });
 sfxToggle.addEventListener('click', () => setSfx(!sfxOn));
 musicToggle.addEventListener('click', () => setMusic(!musicOn));

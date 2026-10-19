@@ -17,6 +17,8 @@ export const CATALOG = {
   hangar: { name: "Full Hangar", price: 99 },
   armor: { name: "Armor Plating", price: 49 },
   revive3: { name: "Revive Pack", price: 99 },
+  // several can go in one payment (up to maxQty); the game caps the wallet at ten
+  shield: { name: "Shield", price: 9, maxQty: 10 },
   // premium planes, each with its own perk (see PLANES in game/index.html)
   plane_titan: { name: "Titan", price: 149 },
   plane_striker: { name: "Striker", price: 149 },
@@ -25,12 +27,19 @@ export const CATALOG = {
 } as const;
 export type ItemId = keyof typeof CATALOG;
 
+// How many of an item one payment may cover. Only consumables sold singly allow more than one.
+export function maxQuantity(item: ItemId): number {
+  const entry: { name: string; price: number; maxQty?: number } = CATALOG[item];
+  return entry.maxQty ?? 1;
+}
+
 const OTP_SECONDS = 5 * 60;
 const MAX_TRIES = 3;
 
 type Pending = {
   txn: string;
   item: ItemId;
+  qty: number;
   phone: string;
   otp: string; // HMAC of the code, never the code itself
   exp: number; // unix seconds
@@ -40,8 +49,9 @@ type Pending = {
 export type Receipt = {
   txn: string;
   item: ItemId;
+  qty: number;
   phone: string; // masked, e.g. 017*****45
-  paid: number;
+  paid: number; // the whole payment, price × qty
   currency: string;
   at: number;
 };
@@ -66,19 +76,29 @@ function hashOtp(txn: string, otp: string): string {
 }
 
 export type StartResult =
-  | { ok: true; token: string; txn: string; expiresIn: number; demoOtp: string }
-  | { ok: false; error: "unknown_item" | "bad_phone" };
+  | { ok: true; token: string; txn: string; qty: number; amount: number; expiresIn: number; demoOtp: string }
+  | { ok: false; error: "unknown_item" | "bad_phone" | "bad_qty" };
 
-export function startPayment(item: unknown, rawPhone: unknown): StartResult {
+// A missing quantity means one. Anything else must be a whole number within the item's limit.
+function normalizeQuantity(item: ItemId, raw: unknown): number | null {
+  if (raw === undefined || raw === null) return 1;
+  const qty = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : NaN;
+  return Number.isInteger(qty) && qty >= 1 && qty <= maxQuantity(item) ? qty : null;
+}
+
+export function startPayment(item: unknown, rawPhone: unknown, rawQty?: unknown): StartResult {
   if (!isItemId(item)) return { ok: false, error: "unknown_item" };
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, error: "bad_phone" };
+  const qty = normalizeQuantity(item, rawQty);
+  if (qty === null) return { ok: false, error: "bad_qty" };
 
   const txn = "PC-" + randomBytes(4).toString("hex").toUpperCase();
   const otp = String(randomInt(0, 1_000_000)).padStart(6, "0");
   const pending: Pending = {
     txn,
     item,
+    qty,
     phone,
     otp: hashOtp(txn, otp),
     exp: Math.floor(Date.now() / 1000) + OTP_SECONDS,
@@ -86,17 +106,28 @@ export function startPayment(item: unknown, rawPhone: unknown): StartResult {
   };
   // A real wallet would text the code to the phone here. In the demo it is handed
   // back so the game can show it on screen.
-  return { ok: true, token: encodeToken(pending, "pending"), txn, expiresIn: OTP_SECONDS, demoOtp: otp };
+  return {
+    ok: true,
+    token: encodeToken(pending, "pending"),
+    txn,
+    qty,
+    amount: CATALOG[item].price * qty,
+    expiresIn: OTP_SECONDS,
+    demoOtp: otp,
+  };
 }
 
 export type ConfirmResult =
-  | { ok: true; txn: string; item: ItemId; paid: number; currency: string; receipt: string }
+  | { ok: true; txn: string; item: ItemId; qty: number; paid: number; currency: string; receipt: string }
   | { ok: false; error: "wrong_otp"; token: string; triesLeft: number }
   | { ok: false; error: "invalid" | "expired" | "too_many" };
 
 export function confirmPayment(token: unknown, rawOtp: unknown): ConfirmResult {
   const pending = decodeToken<Pending>(token, "pending");
   if (!pending || !isItemId(pending.item)) return { ok: false, error: "invalid" };
+  // tokens issued before quantities existed carry none: they were always for one
+  const qty = pending.qty === undefined ? 1 : normalizeQuantity(pending.item, pending.qty);
+  if (qty === null) return { ok: false, error: "invalid" };
   if (pending.exp * 1000 <= Date.now()) return { ok: false, error: "expired" };
 
   const otp = typeof rawOtp === "string" ? rawOtp.trim() : "";
@@ -113,12 +144,13 @@ export function confirmPayment(token: unknown, rawOtp: unknown): ConfirmResult {
     };
   }
 
-  const entry = CATALOG[pending.item];
+  const paid = CATALOG[pending.item].price * qty;
   const receipt: Receipt = {
     txn: pending.txn,
     item: pending.item,
+    qty,
     phone: maskPhone(pending.phone),
-    paid: entry.price,
+    paid,
     currency: CURRENCY,
     at: Date.now(),
   };
@@ -126,7 +158,8 @@ export function confirmPayment(token: unknown, rawOtp: unknown): ConfirmResult {
     ok: true,
     txn: pending.txn,
     item: pending.item,
-    paid: entry.price,
+    qty,
+    paid,
     currency: CURRENCY,
     receipt: encodeToken(receipt, "receipt"),
   };
