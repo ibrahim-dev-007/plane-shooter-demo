@@ -38,6 +38,7 @@ const GAME_FILES: Record<string, { type: string; kind: FileKind }> = {
   "my-plane-2.png": { type: "image/png", kind: "image" },
   "my-plane-3.png": { type: "image/png", kind: "image" },
   "powerup.png": { type: "image/png", kind: "image" },
+  "shield-btn.png": { type: "image/png", kind: "image" }, // the in-match shield button face
   "tank-barrel.png": { type: "image/png", kind: "image" },
   "tank-body.png": { type: "image/png", kind: "image" },
   "music-menu.mp3": { type: "audio/mpeg", kind: "audio" },
